@@ -1,0 +1,113 @@
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "convergent-handwashing"
+version = "0.1.0"
+description = "Texas Convergent interactive handwashing system: shared hand tracking, three-branch recognition, fusion, region evidence, projector calibration, backend, and Raspberry Pi agent."
+readme = "README.md"
+requires-python = ">=3.11,<3.12"
+license = { text = "Proprietary - Texas Convergent build team (see THIRD_PARTY.md for upstream notices)" }
+authors = [{ name = "Texas Convergent Build Team" }]
+
+# Core laptop inference stack (computer vision + landmark classifiers).
+# PyTorch is the single heavy framework: it serves the corrected temporal LSTM
+# and the YOLOv5 branch. TensorFlow is only pulled in by the optional
+# `skia-legacy` extra, which is needed solely to run the upstream one-timestep
+# Keras checkpoint in legacy-compat mode.
+dependencies = [
+    "numpy>=1.26,<2.0",
+    "opencv-contrib-python>=4.10,<4.12",
+    "mediapipe==0.10.21",
+    "scipy>=1.13,<1.16",
+    "scikit-learn>=1.5,<1.7",
+    "torch>=2.5,<2.7",
+    "pydantic>=2.9,<3",
+    "pydantic-settings>=2.6,<3",
+    "pyyaml>=6.0,<7",
+    "python-dotenv>=1.0,<2",
+    "psutil>=6.0,<8",
+    "websockets>=13.1,<15",
+    "httpx>=0.27,<0.29",
+    "pillow>=10.4,<12",
+]
+
+[project.optional-dependencies]
+backend = [
+    "fastapi>=0.115,<0.116",
+    "uvicorn[standard]>=0.32,<0.35",
+    "sqlalchemy>=2.0.36,<2.1",
+    "alembic>=1.14,<2",
+    "psycopg[binary]>=3.2,<4",
+]
+yolo = [
+    "torchvision>=0.20,<0.22",
+    "pandas>=2.2,<3",
+    "tqdm>=4.66,<5",
+    "requests>=2.32,<3",
+    "matplotlib>=3.9,<4",
+    "seaborn>=0.13,<0.14",
+    "gitpython>=3.1,<4",
+    "thop>=0.1.1",
+    "ipython>=8.18,<9",
+    "tensorboard>=2.18,<3",
+    "setuptools>=70,<80",   # yolov5 v7.0 imports pkg_resources (removed in setuptools 80+)
+]
+skia-legacy = [
+    "tensorflow-cpu>=2.18,<2.19; sys_platform != 'darwin'",
+    "tensorflow>=2.18,<2.19; sys_platform == 'darwin'",
+]
+dev = [
+    "pytest>=8.3,<9",
+    "pytest-asyncio>=0.24,<0.26",
+    "pytest-timeout>=2.3,<3",
+    "ruff>=0.7,<0.10",
+    "fastapi>=0.115,<0.116",
+    "uvicorn[standard]>=0.32,<0.35",
+    "sqlalchemy>=2.0.36,<2.1",
+    "alembic>=1.14,<2",
+    "psycopg[binary]>=3.2,<4",
+]
+# Raspberry Pi agent: deliberately tiny. picamera2 comes from apt on Pi OS
+# (python3-picamera2) and must NOT be pip-installed; see docs/PI_SETUP.md.
+pi = [
+    "numpy>=1.26,<2.0",
+    "websockets>=13.1,<15",
+    "pillow>=10.4,<12",
+    "psutil>=6.0,<8",
+    "pyyaml>=6.0,<7",
+]
+
+[project.scripts]
+convergent = "convergent.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/convergent"]
+
+[tool.uv]
+# The lock file (uv.lock) is the reproducible environment. `make install`
+# runs `uv sync --extra backend --extra yolo --extra dev`.
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+timeout = 300
+filterwarnings = [
+    "ignore::DeprecationWarning:google.protobuf",
+    "ignore::DeprecationWarning:mediapipe",
+]
+markers = [
+    "mediapipe: tests that run the real MediaPipe landmark model",
+    "slow: slow tests",
+    "hardware: requires physical Raspberry Pi / camera / projector (never run in CI)",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["src", "tests", "scripts"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "N", "SIM"]
+ignore = ["E501", "B008", "SIM108", "N812", "N803", "N806", "N818", "B017", "B027", "B007", "SIM105", "SIM117", "E741"]  # matrix names (H, K) follow the math convention

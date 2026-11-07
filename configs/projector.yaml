@@ -1,0 +1,17 @@
+# RIF6 Cube pico projector (fixed hardware). The logical canvas is the native panel resolution;
+# the HDMI mode the projector negotiates with the Pi (possibly 720p) is handled by the Pi renderer
+# with letterboxing and must be confirmed on hardware (docs/CALIBRATION.md).
+projector:
+  model: RIF6 Cube
+  logical_width: 854
+  logical_height: 480
+  input: mini-HDMI
+calibration:
+  default_pattern: chessboard     # chessboard | dot_grid | aruco_grid
+  chessboard: {cols: 9, rows: 6}
+  dot_grid: {cols: 8, rows: 5}
+  aruco_grid: {cols: 5, rows: 3}
+  ransac_threshold_px: 3.0
+  max_rmse_px: 4.0                # profiles above this are stored but marked invalid
+  plane_id: sink_plane
+  synthetic_test_tolerance_px: 2.0

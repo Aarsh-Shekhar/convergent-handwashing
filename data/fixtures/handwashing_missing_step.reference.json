@@ -1,0 +1,16 @@
+{
+  "recording_id": "dpt-xyz/HandWashDataset_yoloFormat/TestingData/missingStep_test1.mp4",
+  "subject_id": "unknown-single-subject",
+  "approximate": true,
+  "held_out": "not used to train any artifact in this repository (HandHygiene: own videos; S-Kia: Kaggle landmarks; YOLO: separate training frames)",
+  "source_of_annotation": "upstream HWD_YOLOv5.ipynb result_file.txt step durations (Step1 11s, Step2 17s, Step3 18s, Step4 17s, Step5 missing, Step6 6s, Step7 4s), laid out sequentially; boundaries are NOT frame-accurate",
+  "events": [
+    {"technique": "palm_to_palm",       "side": "both",    "start_ts": 0.0,  "end_ts": 11.0},
+    {"technique": "back_of_hand",       "side": "unknown", "start_ts": 11.0, "end_ts": 28.0},
+    {"technique": "interlaced_fingers", "side": "both",    "start_ts": 28.0, "end_ts": 46.0},
+    {"technique": "backs_of_fingers",   "side": "unknown", "start_ts": 46.0, "end_ts": 63.0},
+    {"technique": "fingertip_rubbing",  "side": "unknown", "start_ts": 63.0, "end_ts": 69.0},
+    {"technique": "wrist_rubbing",      "side": "unknown", "start_ts": 69.0, "end_ts": 73.0}
+  ],
+  "required": ["palm_to_palm", "back_of_hand", "interlaced_fingers", "backs_of_fingers", "thumb_rubbing", "fingertip_rubbing"]
+}

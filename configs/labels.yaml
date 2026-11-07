@@ -1,0 +1,85 @@
+# Canonical label space and per-model native -> canonical mappings.
+#
+# Every mapping below was derived from the upstream SOURCE, not guessed from integers:
+#   * HandHygiene: app/video_thread.py `steps_map` + Example.ipynb `valores_unicos`
+#       model classes_ = [1..10]  <->  [1.0, 2.1, 2.2, 3.0, 4.1, 4.2, 5.1, 5.2, 6.1, 6.2]
+#       (WHO step number; ".1"/".2" are the two mirror variants of asymmetric steps).
+#       The paper/code do NOT state which hand ".1" acts on -> side UNRESOLVED.
+#       Class index 10 ("No step") is NOT a model class; it is produced by the upstream
+#       0.4 confidence threshold. We represent it as PredictionStatus.UNKNOWN.
+#   * S-Kia: step_names = ["1","2lt","2rt","3","4lt","4rt","5lt","5rt","6lt","6rt","7lt","7rt"]
+#       = Kaggle realtimear/hand-wash-dataset folders Step_1, Step_2_Left, Step_2_Right, ...
+#       Kaggle's "Left"/"Right" semantics (hand acted upon vs. acting) are not documented in
+#       the repository -> side UNRESOLVED until verified on the dataset videos
+#       (see docs/MODEL_INTEGRATION.md "Resolving side semantics").
+#   * YOLO (dpt-xyz): classes 0..6 = Step1..Step7 (README table). Visually verified on the
+#       vendored training images (upstream/.../images/train/{c}_40.jpg):
+#       0 palm-to-palm, 1 palm over dorsum (back of hand), 2 interlaced fingers,
+#       3 backs of fingers interlocked, 4 thumb rubbing, 5 fingertips in palm, 6 wrist rubbing.
+#       Step7/wrist is outside the WHO six-technique core -> extension label `wrist_rubbing`.
+version: 1
+techniques:
+  core:
+    - palm_to_palm
+    - back_of_hand
+    - interlaced_fingers
+    - backs_of_fingers
+    - thumb_rubbing
+    - fingertip_rubbing
+  special:
+    - none
+    - unknown
+    - transition
+  # Extensions never create region evidence for the core regions. Adding one here does
+  # not require retraining anything; models that lack the class simply never emit it.
+  extensions:
+    - wrist_rubbing
+# Techniques where one hand acts on the other (side = hand receiving the action).
+sided_techniques: [back_of_hand, backs_of_fingers, thumb_rubbing, fingertip_rubbing, wrist_rubbing]
+symmetric_techniques: [palm_to_palm, interlaced_fingers]
+
+models:
+  handhygiene:
+    native_order: ["1", "2.1", "2.2", "3", "4.1", "4.2", "5.1", "5.2", "6.1", "6.2"]
+    map:
+      "1":   {technique: palm_to_palm,       side: both}
+      "2.1": {technique: back_of_hand,       side: unresolved, note: "variant 1 of WHO step 2; acted-upon hand unverified"}
+      "2.2": {technique: back_of_hand,       side: unresolved, note: "variant 2 of WHO step 2"}
+      "3":   {technique: interlaced_fingers, side: both}
+      "4.1": {technique: backs_of_fingers,   side: unresolved}
+      "4.2": {technique: backs_of_fingers,   side: unresolved}
+      "5.1": {technique: thumb_rubbing,      side: unresolved}
+      "5.2": {technique: thumb_rubbing,      side: unresolved}
+      "6.1": {technique: fingertip_rubbing,  side: unresolved}
+      "6.2": {technique: fingertip_rubbing,  side: unresolved}
+  skia:
+    native_order: ["1", "2lt", "2rt", "3", "4lt", "4rt", "5lt", "5rt", "6lt", "6rt", "7lt", "7rt"]
+    map:
+      "1":   {technique: palm_to_palm,       side: both}
+      "2lt": {technique: back_of_hand,       side: unresolved, note: "Kaggle Step_2_Left; which hand is on top is unverified"}
+      "2rt": {technique: back_of_hand,       side: unresolved, note: "Kaggle Step_2_Right"}
+      "3":   {technique: interlaced_fingers, side: both}
+      "4lt": {technique: backs_of_fingers,   side: unresolved}
+      "4rt": {technique: backs_of_fingers,   side: unresolved}
+      "5lt": {technique: thumb_rubbing,      side: unresolved}
+      "5rt": {technique: thumb_rubbing,      side: unresolved}
+      "6lt": {technique: fingertip_rubbing,  side: unresolved}
+      "6rt": {technique: fingertip_rubbing,  side: unresolved}
+      "7lt": {technique: wrist_rubbing,      side: unresolved, note: "extension; not a core WHO rubbing technique"}
+      "7rt": {technique: wrist_rubbing,      side: unresolved}
+  yolo:
+    native_order: ["Step1", "Step2", "Step3", "Step4", "Step5", "Step6", "Step7"]
+    map:
+      "Step1": {technique: palm_to_palm,       side: both}
+      "Step2": {technique: back_of_hand,       side: unknown, note: "no side information in the 7-class scheme"}
+      "Step3": {technique: interlaced_fingers, side: both}
+      "Step4": {technique: backs_of_fingers,   side: unknown}
+      "Step5": {technique: thumb_rubbing,      side: unknown}
+      "Step6": {technique: fingertip_rubbing,  side: unknown}
+      "Step7": {technique: wrist_rubbing,      side: unknown, note: "extension"}
+
+# Optional human-verified side resolution. Fill these in after watching the dataset
+# videos (docs/MODEL_INTEGRATION.md). Keys are "<model>:<native_label>", values are
+# left|right (the hand RECEIVING the action). Until a key is present, the mapping above
+# stays `unresolved` and cannot produce a side-specific validated event.
+side_resolution: {}

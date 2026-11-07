@@ -1,0 +1,31 @@
+# environments / caches
+.venv/
+.venv-pi/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.env
+logs/
+runs/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# large / private artifacts (fetch with `make models`, train with scripts/)
+models/**
+!models/README.md
+!models/handhygiene/
+models/handhygiene/*
+!models/handhygiene/rf_10102024.numpy-forest.npz   # 219 KB validated conversion (MIT-licensed upstream)
+!models/calibration/
+models/calibration/*
+!models/calibration/.gitkeep
+third_party/
+data/samples/*.mp4
+data/landmark_sequences/
+data/HandWashDataset/
+data/handhygiene_videos/
+# private recordings never go to git
+recordings/

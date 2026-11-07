@@ -1,0 +1,71 @@
+# Model artifact registry. Paths are relative to the repository root; large artifacts are
+# NOT committed (see .gitignore). `make models` copies/derives the upstream artifacts that
+# are legitimately redistributable; `convergent models` prints discovery status.
+#
+# `upstream_sha256` is the hash of the file as audited in the upstream repository clone
+# (2026-11-07). An artifact whose hash does not match is reported, never silently used.
+artifacts:
+  handhygiene:
+    name: HandHygiene RandomForest pipeline (StandardScaler + RF), classes 1..10 - validated numpy-forest conversion
+    path: models/handhygiene/rf_10102024.numpy-forest.npz
+    kind: sklearn_pickle
+    upstream: https://github.com/juannquinones/HandHygiene/blob/main/Data/Models/rf_10102024.pkl
+    upstream_sha256: 5526e8d0a97705a41faa05215f077da8be2cfe106eb9202415ec06a01a9c6995
+    trusted_sha256:
+      - 277780de12631da6a25a34f1a5686f5d08c61b194c4fb609d955eda2a8268bc9  # rf_10102024.numpy-forest.npz (converted, committed)
+      - 5526e8d0a97705a41faa05215f077da8be2cfe106eb9202415ec06a01a9c6995  # rf_10102024.pkl
+      - f680ff8dd1921d1a35d75ea287152eeb298dc2915e2deb8fe59c9c626abd6c0b  # lr_10102024.pkl (Data/Models)
+      - 0ccf92b30f3820556c3c3eafb2a6958aa6ea68888e7a7432b3128873712bec3d  # svm_10102024.pkl
+      - 8df23764072136bea89823412e82c49b7ca11e4d3e9fa1e59324cfd502cf9b3b  # app/Models/lr_10102024.pkl
+    preprocessing_version: handhygiene-centroid-v1
+    label_map: handhygiene
+    notes: >-
+      Pickled with scikit-learn 1.0.2 (Data/Models) / 1.2.1 (app/Models). Statically inspected with
+      pickletools: only sklearn/numpy globals. Loaded through RestrictedUnpickler. Trained on
+      Points_10102024.csv (18,262 frames) with a random 80/20 split and the order-based two-hand
+      assignment bug; generalization to new subjects is unverified.
+  skia_legacy:
+    name: S-Kia generalized_lstm_model.keras (Keras 3.9.1, input (None,1,126), ONE time step)
+    path: models/skia_legacy/generalized_lstm_model.keras
+    kind: keras3
+    upstream: https://github.com/S-Kia/Hand_washing_application/blob/main/generalized_lstm_model.keras
+    upstream_sha256: 3c4f344d0e695b19bc025720e8b92e101e75248e6dd2d1fb4947ba97bc85c7af
+    trusted_sha256:
+      - 3c4f344d0e695b19bc025720e8b92e101e75248e6dd2d1fb4947ba97bc85c7af
+    preprocessing_version: skia-legacy-1step-v1
+    label_map: skia
+    notes: >-
+      Legacy compatibility only. Normalization stats derive from X.pkl
+      (sha256 e485687e8bfe769951c25c8eb58fbbaa4839113dcaf611d18fe3d2943a3f1a6c, joblib numpy pickle)
+      and are cached in models/skia_legacy/legacy_scaler_stats.npz by `make models`.
+      Requires the `skia-legacy` extra (TensorFlow/Keras 3).
+  skia_temporal:
+    name: Corrected multi-frame landmark LSTM (PyTorch), trained by scripts/train_lstm.py
+    path: models/skia_temporal/current
+    kind: torch_artifact_dir
+    upstream: ""
+    preprocessing_version: skia-sequence-v1
+    label_map: skia
+    notes: >-
+      No pretrained artifact exists upstream. Training requires per-recording landmark sequences
+      (scripts/extract_landmark_sequences.py on the Kaggle hand-wash dataset videos). The S-Kia CSVs
+      cannot be used: they contain no recording boundaries and their frame order is string-sorted.
+  yolo:
+    name: YOLOv5s handwashing detector (7 classes Step1..Step7)
+    path: models/yolo/handwash_yolov5.pt
+    kind: yolov5_checkpoint
+    upstream: https://github.com/dpt-xyz/hand-wash-compliance-yolo
+    trusted_sha256: []   # add the sha256 of a checkpoint YOU trained (scripts/train_yolo.py) to enable loading
+    preprocessing_version: yolov5-letterbox-640-v1
+    label_map: yolo
+    notes: >-
+      Upstream repository contains annotations (707 frames) and a training notebook but NO weights.
+      A YOLOv5 .pt file is a pickled model; it is only loaded when its hash is listed here.
+  mediapipe_hand_landmarker:
+    name: MediaPipe Hand Landmarker task bundle (float16)
+    path: models/mediapipe/hand_landmarker.task
+    kind: mediapipe_task
+    upstream: https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task
+    preprocessing_version: ""
+    label_map: ""
+    notes: Optional; when absent the tracker falls back to the bundled legacy mp.solutions.hands graph.

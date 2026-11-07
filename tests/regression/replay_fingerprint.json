@@ -1,0 +1,18 @@
+{
+  "available": {
+    "handhygiene": true,
+    "skia_temporal": false,
+    "skia_legacy": false,
+    "yolo": false
+  },
+  "frames": 120,
+  "events": [
+    [
+      "interlaced_fingers",
+      "both",
+      0.0,
+      7.933
+    ]
+  ],
+  "sha256": "ae5fa55333994bae6c6c0cd7e6fbe923679352767d4019729d2df20222de554b"
+}

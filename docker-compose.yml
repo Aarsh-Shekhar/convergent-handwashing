@@ -1,0 +1,33 @@
+# Persistent backend environment (PostgreSQL). Development/tests use SQLite and need no Docker.
+#   docker compose up -d db
+#   CONVERGENT_DATABASE_URL=postgresql+psycopg://convergent:convergent@localhost:5432/convergent convergent backend
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: convergent
+      POSTGRES_PASSWORD: convergent
+      POSTGRES_DB: convergent
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U convergent"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+  backend:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      CONVERGENT_DATABASE_URL: postgresql+psycopg://convergent:convergent@db:5432/convergent
+      CONVERGENT_API_TOKEN: ${CONVERGENT_API_TOKEN:?set CONVERGENT_API_TOKEN in .env}
+      CONVERGENT_API_HOST: 0.0.0.0
+    ports:
+      - "127.0.0.1:8000:8000"
+    command: ["python", "-m", "convergent.cli", "backend", "--host", "0.0.0.0"]
+volumes:
+  pgdata: {}

@@ -1,0 +1,10 @@
+{
+  "_comment": "Manual camera<->projector correspondences (fallback when pattern detection fails). camera = pixel in the 640x480 processing frame, projector = pixel on the 854x480 logical canvas. Replace with measured values.",
+  "pairs": [
+    {"camera": [52, 61], "projector": [40, 40]},
+    {"camera": [588, 48], "projector": [814, 40]},
+    {"camera": [596, 431], "projector": [814, 440]},
+    {"camera": [44, 442], "projector": [40, 440]},
+    {"camera": [320, 240], "projector": [427, 240]}
+  ]
+}

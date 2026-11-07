@@ -1,0 +1,11 @@
+# Raspberry Pi agent configuration (no secrets: the token comes from CONVERGENT_DEVICE_TOKEN).
+laptop_url: ws://LAPTOP_IP:8765
+device_id: pi-faucet-01
+width: 640
+height: 480
+fps: 15.0
+jpeg_quality: 80
+send_queue: 2
+status_interval_s: 2.0
+renderer: auto        # framebuffer on the Pi (/dev/fb0), image elsewhere
+camera: auto          # picamera2 on the Pi, emulated elsewhere

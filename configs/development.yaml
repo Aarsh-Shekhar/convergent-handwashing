@@ -1,0 +1,63 @@
+# Default laptop development configuration. Secrets live in .env (see .env.example).
+source:
+  kind: synthetic          # video | webcam | network | synthetic (overridden by CLI commands)
+  width: 640
+  height: 480
+  target_fps: 15.0         # engineering starting point, not a guaranteed hardware rate
+  rotation_deg: 0
+tracker:
+  backend: auto            # tasks (needs models/mediapipe/hand_landmarker.task) | solutions (bundled) | null
+  num_hands: 2
+  min_detection_confidence: 0.5
+  min_tracking_confidence: 0.5
+  model_complexity: 1
+  swap_handedness: true    # faucet camera image is NOT mirrored -> swap MediaPipe's selfie-convention label
+handhygiene:
+  enabled: true
+  model_path: models/handhygiene/rf_10102024.numpy-forest.npz   # validated conversion of upstream RF (sklearn 1.0.2)
+  unknown_threshold: 0.4
+  feed_mode: raw_label     # reproduce the upstream slot convention exactly
+skia:
+  enabled: true
+  mode: temporal           # temporal | legacy (needs TensorFlow extra) | both
+  temporal_artifact_dir: models/skia_temporal/current
+  window_frames: 16
+  max_gap_s: 0.25
+  unknown_threshold: 0.4
+yolo:
+  enabled: true
+  weights_path: models/yolo/handwash_yolov5.pt
+  every_n_frames: 3
+  conf_threshold: 0.25
+fusion:
+  method: reliability_weighted
+  weights: {handhygiene: 1.0, skia_temporal: 1.0, skia_legacy: 0.5, yolo: 1.0}   # placeholders until validation-derived
+  unknown_threshold: 0.45
+  contradiction_margin: 0.15
+  alignment_tolerance_s: 0.25
+  max_prediction_age_s: 0.6
+temporal:
+  enter_confidence: 0.6
+  exit_confidence: 0.4
+  min_duration_s: 1.0
+  max_gap_s: 0.5
+  min_tracking_quality: 0.3
+  merge_gap_s: 0.75
+  duplicate_window_s: 1.0
+regions:
+  min_sufficient_duration_s: 3.0
+  partial_visibility_weight: 0.5
+  use_unresolved_side_evidence: false
+projector:
+  logical_width: 854
+  logical_height: 480
+  profile_path: models/calibration/active_profile.json
+  anchors: [hand_centroid, fingertips]
+  smoothing: {method: one_euro, one_euro_min_cutoff: 1.5, one_euro_beta: 0.05, reset_gap_s: 0.5, max_prediction_horizon_s: 0.1}
+backend:
+  enabled: false
+  base_url: http://127.0.0.1:8000
+  batch_size: 32
+queue_size: 4
+device_id: laptop-dev
+results_dir: runs
