@@ -1,0 +1,25 @@
+{
+  "tracker": "mediapipe.tasks.HandLandmarker",
+  "available": {
+    "handhygiene": true,
+    "skia_temporal": true,
+    "skia_legacy": false,
+    "yolo": false
+  },
+  "frames": 120,
+  "events": [
+    [
+      "interlaced_fingers",
+      "both",
+      0.0,
+      1.533
+    ],
+    [
+      "interlaced_fingers",
+      "both",
+      3.133,
+      4.533
+    ]
+  ],
+  "sha256": "ae03162c3f00e5261bff508eda617e61902f1a8f47881e3063512d6eded2c94e"
+}
