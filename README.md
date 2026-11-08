@@ -18,6 +18,29 @@ No game engine, scoring or final animations are included (by design); the typed
 `ProgressState`, `GestureEvent`, `RegionEvidence` and `ProjectionTarget` contracts plus the
 backend API are what the gamification layer will consume (see `docs/GAMIFICATION_HANDOFF.md`).
 
+## Install and run (copy-paste, macOS)
+
+```bash
+# 1. get the code (one of):
+git clone https://github.com/<owner>/convergent-handwashing.git ~/convergent-handwashing
+cd ~/convergent-handwashing
+
+# 2. one-shot setup (~15 min the first time: installs uv + Python 3.11 + packages, writes .env, runs tests + a demo replay)
+bash SETUP_MAC.command
+tail -n 3 setup_log.txt            # must say "Setup finished successfully"
+
+# 3. see it work on the sample video (no hardware)
+.venv/bin/python -m convergent.cli replay --video data/samples/handwashing_missing_step.mp4 --save-results --backend inprocess
+
+# 4. hardware day
+bash START_LAPTOP.command          # laptop: backend + gateway + pipeline, prints your LAN IP and the device token to use
+#   on the Pi (after flashing Raspberry Pi OS Lite 64-bit and copying the repo there):
+#   bash scripts/pi/install_pi.sh <LAPTOP_IP> <CONVERGENT_DEVICE_TOKEN from .env>   then   sudo reboot
+```
+
+Linux instead of macOS: `make install && make models && make test`, then the same commands.
+Windows: use WSL2 and the Linux commands. Everything is logged; if a step fails, send `setup_log.txt`.
+
 ## Start here
 
 | You want to… | Do this |
