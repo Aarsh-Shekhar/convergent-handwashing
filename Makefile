@@ -2,7 +2,7 @@
 UV ?= uv
 PY := .venv/bin/python
 
-.PHONY: help install install-pi models yolov5 samples backend replay camera network pi-emulator calibrate evaluate test lint status db-up
+.PHONY: help install install-legacy install-pi models yolov5 samples backend replay camera network pi-emulator calibrate evaluate train-lstm start test test-fast lint status db-up
 
 help:
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-14s %s\n", $$1, $$2}'
@@ -51,6 +51,13 @@ calibrate: ## synthetic projector calibration self-test
 
 evaluate: ## evaluate on the sample recording with branch ablations
 	$(PY) scripts/evaluate_models.py --video data/samples/handwashing_missing_step.mp4 --reference data/fixtures/handwashing_missing_step.reference.json --ablation --out runs/evaluation.json
+
+train-lstm: ## extract landmarks from DATA (Step_* folders) and run the temporal-model sweep (installs the winner)
+	$(PY) scripts/extract_landmark_sequences.py --root $(or $(DATA),data/HandWashDataset) --out data/landmark_sequences
+	$(PY) scripts/sweep_lstm.py --data data/landmark_sequences --out runs/lstm_sweep --epochs 80
+
+start: ## hardware day: backend + device gateway + pipeline (same as START_LAPTOP.command)
+	bash START_LAPTOP.command
 
 test: ## run the whole test-suite
 	$(PY) -m pytest -q

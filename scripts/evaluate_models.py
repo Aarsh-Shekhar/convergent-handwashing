@@ -133,6 +133,7 @@ def main() -> int:
     ap.add_argument("--video", type=Path, default=None)
     ap.add_argument("--reference", type=Path, default=None)
     ap.add_argument("--ablation", action="store_true")
+    ap.add_argument("--branches", default=None, help="comma-separated subset to evaluate (default: every branch with an artifact)")
     ap.add_argument("--max-frames", type=int, default=None)
     ap.add_argument("--sequences", type=Path, default=None)
     ap.add_argument("--artifact", type=Path, default=None, help="temporal artifact dir (default from config)")
@@ -157,6 +158,12 @@ def main() -> int:
             report.notes.append(f"branches without a usable artifact did not participate: {unavailable}")
         if not avail:
             report.notes.append("no branch available: pipeline runs in model-unavailable mode")
+        if args.branches:
+            wanted = tuple(b.strip() for b in args.branches.split(",") if b.strip())
+            bad = sorted(set(wanted) - set(avail))
+            if bad:
+                ap.error(f"requested branches without a usable artifact: {bad} (available: {list(avail)})")
+            avail = wanted
         subsets = branch_subsets(avail) if (args.ablation and avail) else [avail]
         for subset in subsets:
             res = run_once(cfg, args.video, subset, refs, required, args.max_frames)

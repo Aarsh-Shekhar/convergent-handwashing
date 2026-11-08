@@ -75,10 +75,12 @@ class FeatureScaler:
         if self.mean.shape != self.std.shape:
             raise ValueError("scaler mean/std shape mismatch")
 
+    MIN_STD = 1e-3  # floor: a near-constant feature (e.g. MediaPipe's wrist z, always ~0) must not amplify noise 10^6x
+
     @classmethod
-    def fit(cls, x: np.ndarray) -> FeatureScaler:
+    def fit(cls, x: np.ndarray, min_std: float = MIN_STD) -> FeatureScaler:
         flat = x.reshape(-1, x.shape[-1])
-        return cls(flat.mean(axis=0), flat.std(axis=0))
+        return cls(flat.mean(axis=0), np.maximum(flat.std(axis=0), min_std))
 
     def transform(self, x: np.ndarray) -> np.ndarray:
         if x.shape[-1] != self.mean.shape[0]:

@@ -95,8 +95,11 @@ class SequenceBuffer:
             raise RuntimeError("feature_fn not set")
         out = self.feature_fn(hands)
         if out is None:
-            if self.allow_empty_frames:
-                # an empty observation is a hard break: a gesture cannot span a frame with no hands
+            # A frame with no hands is skipped, not pushed. If hands stay absent for longer than
+            # max_gap_s the next push() breaks the window (timestamp gap) – a brief detector
+            # dropout (1-3 frames at 15 FPS) does not throw away the whole sequence. Training
+            # (training.build_windows) applies exactly the same rule.
+            if not self.allow_empty_frames:
                 self.reset()
             return None
         feats, presence, quality = out

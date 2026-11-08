@@ -41,14 +41,46 @@ to `configs/labels.yaml`. Until then, fusion reports `side=unresolved`, the temp
 produces technique-level events with `side_resolved=false`, and region evidence for those events
 is recorded as *unattributed* instead of being assigned to a hand (`regions.use_unresolved_side_evidence`).
 
-## Training the corrected temporal model
+## Training the corrected temporal model (done – this is how `models/skia_temporal/current` was made)
 
-1. Get the Kaggle dataset (videos per step folder).
-2. `python scripts/extract_landmark_sequences.py --root data/HandWashDataset --out data/landmark_sequences`
-   (per-video `.npz` with PTS timestamps, S-Kia feature layout from the shared tracker, presence flags, subject id from the file name).
-3. `python scripts/train_lstm.py --data data/landmark_sequences --out models/skia_temporal/v0.1.0 --window 16 --stride 4 --epochs 40`
-4. Inspect `meta.json` (`split.test_groups` must not overlap `train_groups`; `metrics.test`).
-5. `cp -r models/skia_temporal/v0.1.0 models/skia_temporal/current` (or set `skia.temporal_artifact_dir`).
+Dataset: Kaggle `realtimear/hand-wash-dataset` – 300 MP4s, 12 folders `Step_1 … Step_7_Right`,
+25 recording sessions (`HandWash_001 … 025`) in 5 sink/location groups (`G_01 … G_05`, see the
+dataset's `HandwashList.txt`); 720×480 or 1920×1080 at 30 FPS; adults, overhead sink camera.
+Put it at `data/HandWashDataset/` (not committed – 1.3 GB).
+
+```bash
+# 1. landmarks: one .npz per video from the SHARED tracker (15 FPS decimation on PTS, raw_label feed, presence flags; ~25 min on 2 CPU cores)
+.venv/bin/python scripts/extract_landmark_sequences.py --root data/HandWashDataset --out data/landmark_sequences
+# 2. small sweep on a FIXED session-grouped split, winner chosen on validation macro-F1, installed to models/skia_temporal/current
+.venv/bin/python scripts/sweep_lstm.py --data data/landmark_sequences --out runs/lstm_sweep --epochs 80
+# 3. stricter estimate: leave-one-sink-group-out cross-validation with the winning hyper-parameters
+.venv/bin/python scripts/crossval_lstm.py --data data/landmark_sequences --window <W> --stride <S> --hidden <H> --epochs 80
+# (single run, no sweep:)  .venv/bin/python scripts/train_lstm.py --data data/landmark_sequences --out models/skia_temporal/v0.2.0
+```
+
+What the trainer guarantees: windows come from contiguous, timestamp-ordered frames of one
+recording and never contain a frame with no hands (the inference buffer resets there, so train and
+inference see the same thing); the split is grouped (session id, or `--group-regex` for the sink
+group); the scaler is fitted on training windows only, with a std floor so near-constant features
+(MediaPipe wrist z) cannot amplify noise; class-balanced cross-entropy with label smoothing,
+AdamW, LR plateau schedule, early stopping on validation loss; and `meta.json` records classes,
+window geometry, dataset fingerprint, split groups, hyper-parameters and the metrics.
+
+Training-time augmentation (`AugmentConfig`, inference preprocessing unchanged): one random
+translation and isotropic scale per window (both hands), x/y jitter, and optional horizontal
+mirroring that swaps the left/right blocks, the presence flags and the label side (`2lt` ↔ `2rt`).
+The sweep compares mirror on/off; see `docs/TEST_RESULTS.md` §3 for the numbers.
+
+Facts to keep in mind when reading the metrics:
+
+* In the Kaggle videos the two hands overlap so much that MediaPipe finds **one** hand in ~97 % of
+  frames (raw MediaPipe, not our tracker – verified). The model therefore mostly learns from one
+  hand's 21 landmarks over time plus *which* hand is visible. Our faucet camera will see the hands
+  differently; record our own clips before trusting any number (`docs/HARDWARE_DAY_RUNBOOK.md` §4).
+* "Session" is the only identity the file names carry. Sessions in the same sink group may well
+  be the same person, which is why the sink-group cross-validation is reported as well.
+* Side semantics (`2lt` vs `2rt`) remain `unresolved` in `configs/labels.yaml` until someone looks
+  at the videos and writes down what "Left" means; the model predicts the native label either way.
 
 Why the S-Kia CSVs cannot be used: `Prepare_data.ipynb` writes all videos of a class into one
 folder with overlapping file names (`{count}.jpg`) and then lists them with string sorting

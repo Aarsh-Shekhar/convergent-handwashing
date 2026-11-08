@@ -170,6 +170,7 @@ class PipelineConfig(_Cfg):
     queue_size: int = 4
     device_id: str = "laptop-dev"
     results_dir: str = "runs"
+    live_status_every_s: float = 2.0  # log a one-line status this often while running (0 = off)
 
     @classmethod
     def load(cls, path: str | Path | None = None, overrides: dict[str, Any] | None = None) -> PipelineConfig:

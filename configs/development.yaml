@@ -31,7 +31,12 @@ yolo:
   conf_threshold: 0.25
 fusion:
   method: reliability_weighted
-  weights: {handhygiene: 1.0, skia_temporal: 1.0, skia_legacy: 0.5, yolo: 1.0}   # placeholders until validation-derived
+  # Reliability weights set 2026-11-07 from independent held-out evidence (docs/TEST_RESULTS.md):
+  # skia_temporal 0.905 acc on held-out Kaggle sessions and best single branch on the sample video;
+  # handhygiene 0.30 acc on the sample video (trained upstream with the hand-assignment bug);
+  # skia_legacy is the leaky 1-step checkpoint; yolo has no weights. Re-derive from OUR recordings
+  # (docs/MODEL_INTEGRATION.md "Calibration of branch confidences and fusion weights").
+  weights: {handhygiene: 0.4, skia_temporal: 1.0, skia_legacy: 0.3, yolo: 0.5}
   unknown_threshold: 0.45
   contradiction_margin: 0.15
   alignment_tolerance_s: 0.25

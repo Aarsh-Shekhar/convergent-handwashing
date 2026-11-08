@@ -348,3 +348,68 @@ def test_yolo_prediction_from_detections_maps_labels_and_timestamps():
     empty = a.prediction_from_detections(np.zeros((0, 6)), 1.0, 1, 1.0)
     assert empty.status == PredictionStatus.UNKNOWN
     assert a.should_run(0) and not a.should_run(1) and a.should_run(3)
+
+
+def test_augment_mirror_swaps_hands_and_side_labels():
+    import numpy as np
+
+    from convergent.detection.training import AugmentConfig, augment_windows, mirror_label
+
+    assert mirror_label("2lt") == "2rt" and mirror_label("7rt") == "7lt" and mirror_label("1") == "1"
+    rng = np.random.default_rng(0)
+    b, t = 64, 4
+    x = rng.uniform(0.1, 0.9, size=(b, t, 126)).astype(np.float32)
+    pres = np.ones((b, t, 2), np.float32)
+    pres[:, :, 1] = 0.0  # right hand absent
+    x[:, :, 63:] = 0.0
+    labels = np.array(["2lt"] * b, dtype="<U8")
+    cfg = AugmentConfig(mirror=True, translate=0.0, scale=0.0, jitter=0.0)
+    ax, ap, al = augment_windows(x, pres, labels, cfg, np.random.default_rng(1))
+    flipped = al == "2rt"
+    assert flipped.any() and (~flipped).any()
+    # flipped windows: the (only) hand moved from the left block to the right block, x mirrored, presence swapped
+    f = np.where(flipped)[0][0]
+    assert np.allclose(ap[f], [[0.0, 1.0]] * t)
+    assert np.allclose(ax[f, :, :63], 0.0)
+    orig = x[f, :, :63].reshape(t, 21, 3)
+    new = ax[f, :, 63:].reshape(t, 21, 3)
+    assert np.allclose(new[..., 0], 1.0 - orig[..., 0], atol=1e-6) and np.allclose(new[..., 1:], orig[..., 1:], atol=1e-6)
+    # unflipped windows are untouched; absent hands stay exactly zero in every window
+    u = np.where(~flipped)[0][0]
+    assert np.allclose(ax[u], x[u]) and np.allclose(ap[u], pres[u])
+    ax2, ap2, _ = augment_windows(x, pres, labels, AugmentConfig(mirror=False, translate=0.1, scale=0.2, jitter=0.01), np.random.default_rng(2))
+    assert np.allclose(ax2[:, :, 63:], 0.0) and np.allclose(ap2, pres)
+    assert not np.allclose(ax2[:, :, :63], x[:, :, :63])
+
+
+def test_build_windows_skips_frames_without_hands_like_the_buffer():
+    import numpy as np
+
+    from convergent.detection.sequence_buffer import SequenceBuffer
+    from convergent.detection.training import Recording, build_windows
+
+    n = 40
+    feats = np.random.default_rng(0).uniform(0.2, 0.8, size=(n, 126)).astype(np.float32)
+    pres = np.ones((n, 2), np.float32)
+    pres[18:20] = 0.0  # a 2-frame detector dropout (0.13 s at 15 FPS): bridged
+    pres[30:36] = 0.0  # a 6-frame absence (0.4 s > max_gap 0.25 s): breaks the window
+    feats[18:20] = 0.0
+    feats[30:36] = 0.0
+    ts = np.arange(n) / 15.0
+    rec = Recording("r", "s", feats, pres, ts, np.array(["3"] * n), "test", 15.0)
+    ws = build_windows([rec], window=8, stride=1, max_gap_s=0.25)
+    assert len(ws.y) > 0
+    assert ws.presence.max(axis=2).min() > 0.5, "windows never contain an all-absent frame"
+    assert (np.abs(ws.x).max(axis=2) > 0).all()
+    # the same recording through the online buffer yields the same number of windows
+    buf = SequenceBuffer(8, 0.25, 1, feature_fn=None)
+    online = 0
+    for i in range(n):
+        if pres[i].max() < 0.5:
+            continue  # SequenceBuffer.update() skips empty observations
+        if buf.push(ts[i], i, feats[i], pres[i], 1.0) is not None:
+            online += 1
+    assert online == len(ws.y)
+    # bridged dropout: a window starting at frame 17 continues through the dropout (17,20..26)
+    spans = [(w[0], w[-1]) for w in ws.x]
+    assert any(np.allclose(a, feats[17]) and np.allclose(b, feats[26]) for a, b in spans)

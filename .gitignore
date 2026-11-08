@@ -18,10 +18,20 @@ models/**
 !models/README.md
 !models/handhygiene/
 models/handhygiene/*
-!models/handhygiene/rf_10102024.numpy-forest.npz   # 219 KB validated conversion (MIT-licensed upstream)
+# 219 KB validated conversion (MIT-licensed upstream)
+!models/handhygiene/rf_10102024.numpy-forest.npz
 !models/calibration/
 models/calibration/*
 !models/calibration/.gitkeep
+!models/skia_temporal/
+models/skia_temporal/*
+# 2.2 MB trained temporal LSTM (Kaggle hand-wash data; see docs/TEST_RESULTS.md section 3)
+!models/skia_temporal/current/
+!models/skia_temporal/current/**
+# datasets and extracted landmark sequences are not committed
+data/HandWashDataset/
+data/landmark_sequences/
+runs/
 third_party/
 data/samples/*.mp4
 data/landmark_sequences/

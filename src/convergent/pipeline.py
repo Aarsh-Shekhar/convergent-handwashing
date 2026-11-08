@@ -262,14 +262,26 @@ class Pipeline:
                 self.mapper.profile.profile_id if self.mapper.profile else None, False, None))
         frames = 0
         last_ts = 0.0
+        status_every = float(self.cfg.live_status_every_s)
+        next_status = monotonic() + status_every if status_every > 0 else None
+        window_frames, window_t0 = 0, monotonic()
         try:
             with self.source:
                 for frame in self.source:
-                    self.process_frame(frame)
+                    res = self.process_frame(frame)
                     frames += 1
+                    window_frames += 1
                     last_ts = frame.capture_ts
                     if frames % 15 == 0:
                         mon.sample()
+                    if next_status is not None and monotonic() >= next_status:
+                        now = monotonic()
+                        fps = window_frames / max(now - window_t0, 1e-6)
+                        window_frames, window_t0, next_status = 0, now, now + status_every
+                        label = res.fused.native_label or res.fused.status.value
+                        conf = f" ({res.fused.confidence:.2f})" if res.fused.confidence is not None else ""
+                        log.info("live: frames=%d fps=%.1f hands=%d fused=%s%s events=%d tracker=%.0fms",
+                                 frames, fps, res.hands.num_hands, label, conf, len(self._all_events), res.timing_ms.get("tracker", 0.0))
                     if max_frames is not None and frames >= max_frames:
                         break
                     if isinstance(self.source, NetworkSource) and self.source.queue.closed:

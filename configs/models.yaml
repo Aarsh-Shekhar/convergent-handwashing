@@ -40,16 +40,21 @@ artifacts:
       and are cached in models/skia_legacy/legacy_scaler_stats.npz by `make models`.
       Requires the `skia-legacy` extra (TensorFlow/Keras 3).
   skia_temporal:
-    name: Corrected multi-frame landmark LSTM (PyTorch), trained by scripts/train_lstm.py
+    name: Corrected multi-frame landmark LSTM (PyTorch), trained by scripts/sweep_lstm.py on the Kaggle hand-wash dataset
     path: models/skia_temporal/current
     kind: torch_artifact_dir
     upstream: ""
+    trusted_sha256:
+      - 98da402fa0ead1cb92227d6e183a1de9cc9d25c7256a316d0c074f5667b3f8db   # v0.1.0 (2026-11-07): w24 s2 h192, held-out sessions acc 0.905 / macro-F1 0.918
     preprocessing_version: skia-sequence-v1
     label_map: skia
     notes: >-
-      No pretrained artifact exists upstream. Training requires per-recording landmark sequences
-      (scripts/extract_landmark_sequences.py on the Kaggle hand-wash dataset videos). The S-Kia CSVs
-      cannot be used: they contain no recording boundaries and their frame order is string-sorted.
+      v0.1.0 trained here on the 300 Kaggle videos (docs/MODEL_INTEGRATION.md, docs/TEST_RESULTS.md section 3).
+      The artifact directory is self-describing (meta.json: classes, window, split groups, metrics, provenance,
+      hyper-parameters); the model.pt hash above is informational – meta.json/scaler.npz are plain JSON/NumPy and
+      model.pt is loaded with weights_only=True. Re-training: scripts/extract_landmark_sequences.py then
+      scripts/sweep_lstm.py (installs the winner here). The S-Kia CSVs cannot be used: they contain no recording
+      boundaries and their frame order is string-sorted.
   yolo:
     name: YOLOv5s handwashing detector (7 classes Step1..Step7)
     path: models/yolo/handwash_yolov5.pt

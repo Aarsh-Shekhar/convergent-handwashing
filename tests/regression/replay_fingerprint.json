@@ -1,7 +1,7 @@
 {
   "available": {
     "handhygiene": true,
-    "skia_temporal": false,
+    "skia_temporal": true,
     "skia_legacy": false,
     "yolo": false
   },
@@ -11,8 +11,8 @@
       "interlaced_fingers",
       "both",
       0.0,
-      7.933
+      1.467
     ]
   ],
-  "sha256": "ae5fa55333994bae6c6c0cd7e6fbe923679352767d4019729d2df20222de554b"
+  "sha256": "3ca74b2599db0b96c1f640735d004abbc22fb78a6853f08abb89fe8545bdcda6"
 }

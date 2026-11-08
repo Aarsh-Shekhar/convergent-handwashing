@@ -31,6 +31,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 from convergent.detection.training import (  # noqa: E402
+    AugmentConfig,
     load_recordings,
     synthetic_recordings,
     train_temporal_model,
@@ -53,6 +54,15 @@ def main() -> int:
     ap.add_argument("--dropout", type=float, default=0.2)
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--version", default="0.1.0")
+    ap.add_argument("--patience", type=int, default=8)
+    ap.add_argument("--weight-decay", type=float, default=1e-4)
+    ap.add_argument("--no-class-weights", action="store_true")
+    ap.add_argument("--augment", type=int, default=1, help="1 = geometric training-time augmentation (mirror+side-label swap, translate, scale, jitter)")
+    ap.add_argument("--aug-translate", type=float, default=0.08)
+    ap.add_argument("--aug-scale", type=float, default=0.12)
+    ap.add_argument("--aug-jitter", type=float, default=0.004)
+    ap.add_argument("--no-mirror", action="store_true")
+    ap.add_argument("--split-seed", type=int, default=None, help="seed for the grouped split (default: --seed); keep it FIXED across a sweep")
     args = ap.parse_args()
     if args.window < 2:
         ap.error("--window must be > 1: a one-step window is not a temporal model")
@@ -66,8 +76,10 @@ def main() -> int:
         recs = load_recordings(args.data)
         provenance = {"dataset": str(args.data), "recordings": [r.recording_id for r in recs], "sources": sorted({r.source for r in recs})}
         version = args.version
+    aug = AugmentConfig(mirror=not args.no_mirror, translate=args.aug_translate, scale=args.aug_scale, jitter=args.aug_jitter) if args.augment else None
     res = train_temporal_model(recs, args.out, args.window, args.stride, args.max_gap, args.epochs, args.batch_size, args.lr, args.hidden,
-                               args.layers, args.dropout, args.seed, version=version, provenance=provenance)
+                               args.layers, args.dropout, args.seed, version=version, provenance=provenance, patience=args.patience,
+                               augment=aug, class_weights=not args.no_class_weights, weight_decay=args.weight_decay, split_seed=args.split_seed)
     print(json.dumps({"artifact": str(args.out), "version": version, "metrics": res.metrics, "split": res.artifact.meta.split}, indent=2, default=str))
     return 0
 

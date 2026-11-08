@@ -1,16 +1,18 @@
 # Hardware arrival checklist (Pi 3 A+, Arducam B0176, RIF6 Cube)
 
-Tick each item and record results in `docs/TEST_RESULTS.md` (section "Hardware").
+The short version with exact commands is `docs/HARDWARE_DAY_RUNBOOK.md`. This is the full
+tick-list; record results in `docs/TEST_RESULTS.md` (section "Hardware").
 
 ## A. Bench setup (laptop only, before touching the Pi)
-- [ ] `make install && make models && make test` pass on the laptop (macOS Apple Silicon: confirm `uv sync` resolves the arm64 wheels for mediapipe 0.10.21 / torch; report versions).
-- [ ] `.env` has `CONVERGENT_API_TOKEN` and `CONVERGENT_DEVICE_TOKEN`; `convergent backend` answers `GET /health`.
-- [ ] `convergent network` + `convergent pi-emulator` round trip works on the laptop (renders appear in `runs/pi_emulator_renders`).
+- [ ] `SETUP_MAC.command` ran to `Setup finished successfully` (`setup_log.txt`); Linux: `make install && make models && make test`.
+- [ ] `.venv/bin/python -m convergent.cli models` shows `handhygiene` and `skia_temporal` loaded.
+- [ ] `bash START_LAPTOP.command` + `convergent pi-emulator` round trip works on the laptop (frames received, events, renders in `runs/pi_emulator_renders`).
 
 ## B. Raspberry Pi 3 A+
-- [ ] Flash Raspberry Pi OS Lite 64-bit (docs/PI_SETUP.md §1–3); SSH works over Wi-Fi; note the Pi's IP.
+- [ ] Flash Raspberry Pi OS Lite 64-bit (docs/PI_SETUP.md §1); SSH works over Wi-Fi.
+- [ ] `bash scripts/pi/install_pi.sh <LAPTOP_IP> <DEVICE_TOKEN>` finished (`setup_pi_log.txt`), rebooted once, `systemctl status convergent-agent` is active.
 - [ ] Power from the onn. 10,000 mAh bank: `vcgencmd get_throttled` stays `0x0` under load (camera + Wi-Fi). If under-voltage flags appear, change cable/bank before blaming software.
-- [ ] `make install-pi`; `python -m convergent.pi_agent --camera emulated --renderer image --url ws://<laptop>:8765 --max-frames 100` → frames arrive at the laptop (`frames_received` in the `network` summary).
+- [ ] Frames arrive at the laptop (`frames_received` increasing in the `START_LAPTOP.command` terminal); emulated-camera fallback: `python -m convergent.pi_agent --camera emulated --renderer image --url ws://<laptop>:8765 --max-frames 100`.
 - [ ] Measure idle memory (`free -m`) and agent RSS with the real camera; target < 150 MB RSS.
 
 ## C. Arducam B0176
@@ -38,7 +40,8 @@ Tick each item and record results in `docs/TEST_RESULTS.md` (section "Hardware")
 - [ ] 15-minute soak: no memory growth on the Pi (`status.mem_available_mb`) or the laptop (summary `resources.rss_mb_max`).
 
 ## G. Data for the models (unblocks the 🟡 items)
-- [ ] Download the Kaggle hand-wash dataset → `scripts/extract_landmark_sequences.py` → `scripts/train_lstm.py` (temporal artifact with real metrics).
+- [x] Kaggle hand-wash dataset → `scripts/extract_landmark_sequences.py` → `scripts/sweep_lstm.py` → `models/skia_temporal/current` (done; metrics in docs/TEST_RESULTS.md §3).
+- [ ] Record our own labelled washes on the real camera and evaluate (`docs/HARDWARE_DAY_RUNBOOK.md` §4); retrain on Kaggle + ours if accuracy is poor.
 - [ ] Train YOLOv5 (`scripts/train_yolo.py`, GPU recommended) and register the checkpoint hash.
 - [ ] Resolve side semantics in `configs/labels.yaml`.
 - [ ] Fit calibrators and fusion weights on held-out recordings; run `scripts/evaluate_models.py --ablation`.
