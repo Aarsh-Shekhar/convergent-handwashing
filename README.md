@@ -53,6 +53,7 @@ Windows: use WSL2 and the Linux commands. Everything is logged; if a step fails,
 | **Retrain the temporal model** (Kaggle set or our own clips in the same `Step_*/` layout) | `scripts/extract_landmark_sequences.py --root data/HandWashDataset --out data/landmark_sequences` then `scripts/sweep_lstm.py --data data/landmark_sequences` (installs the winner to `models/skia_temporal/current`) – see `docs/MODEL_INTEGRATION.md` |
 | **Evaluate / ablate branches on a labelled video** | `scripts/evaluate_models.py --config configs/evaluation.yaml --video <mp4> --reference <json> --ablation --out runs/evaluation.json` |
 | **Build the game layer** | `docs/GAMIFICATION_HANDOFF.md`, `docs/API.md` (REST + WebSocket contracts) |
+| **See what's done and what's left** | `docs/TEAM_HANDOFF.md` |
 
 Every command below is real (`.venv/bin/python -m convergent.cli --help`):
 
@@ -115,7 +116,7 @@ configs/         development.yaml, evaluation.yaml, models.yaml, labels.yaml, pr
 models/          handhygiene/ (committed numpy-forest), skia_temporal/current (committed trained LSTM), skia_legacy/, yolo/
 data/            samples/ (sample video), fixtures/ (reference labels), HandWashDataset/ + landmark_sequences/ (not committed; see docs/MODEL_INTEGRATION.md)
 tests/           unit/ integration/ regression/
-docs/            HARDWARE_DAY_RUNBOOK.md, HARDWARE_ARRIVAL_CHECKLIST.md, PI_SETUP.md, API.md, MODEL_INTEGRATION.md,
+docs/            TEAM_HANDOFF.md, HARDWARE_DAY_RUNBOOK.md, HARDWARE_ARRIVAL_CHECKLIST.md, PI_SETUP.md, API.md, MODEL_INTEGRATION.md,
                  CALIBRATION.md, TEST_RESULTS.md, GAMIFICATION_HANDOFF.md
 ```
 
