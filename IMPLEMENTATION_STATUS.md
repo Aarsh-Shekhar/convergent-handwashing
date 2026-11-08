@@ -2,8 +2,9 @@
 
 Last updated: 2026-11-07 (evening: temporal model trained on the Kaggle dataset). Verification
 environment: Linux x86_64 container, Python 3.11.14 (uv), CPU only (2 cores). macOS install is
-scripted (`SETUP_MAC.command`, logs to `setup_log.txt`) but has not been executed on a Mac yet –
-the first teammate to run it should paste the last lines of the log into `docs/TEST_RESULTS.md`.
+verified on a MacBook (Apple M3, macOS 26.5, `SETUP_MAC.command`): uv sync, cv2 4.11 / mediapipe 0.10.21 /
+torch 2.6.0 arm64 wheels, MediaPipe `tasks` bundle downloaded, 119 tests pass (the replay regression
+fingerprint is per MediaPipe backend: `solutions` on Linux without the bundle, `tasks` on the Mac).
 Hardware (Pi 3 A+, Arducam B0176, RIF6) has **not** arrived: everything Pi/projector-specific is
 "implemented, awaiting hardware"; `docs/HARDWARE_DAY_RUNBOOK.md` + `START_LAPTOP.command` +
 `scripts/pi/install_pi.sh` are the bring-up path.

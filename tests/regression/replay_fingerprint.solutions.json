@@ -1,4 +1,5 @@
 {
+  "tracker": "mediapipe.solutions.hands",
   "available": {
     "handhygiene": true,
     "skia_temporal": true,

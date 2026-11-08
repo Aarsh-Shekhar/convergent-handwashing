@@ -27,7 +27,7 @@ Command: `.venv/bin/python -m pytest -q --timeout 300` (run three times to check
 | tests/integration/test_pipeline_e2e.py | 6 | model-unavailable mode (no fake output), deterministic replay twice + in-process backend persistence, backend outage tolerance, calibration targets → render commands → renderer, temporal branch joining fusion, one-hand sides |
 | tests/integration/test_pi_transport.py | 4 | emulator → gateway frames/status/render/ack, reconnect after gateway restart with bounded queue, unauthorized device rejected (frames refused until hello), garbage/bad payload tolerance |
 | tests/integration/test_mediapipe_real.py | 2 | real MediaPipe on the sample video: two-hand frames, landmark sanity; mirroring/handedness convention |
-| tests/regression/test_replay_regression.py | 1 | 120-frame replay of the sample video twice → identical fused labels/events; fingerprint stored in `tests/regression/replay_fingerprint.json` |
+| tests/regression/test_replay_regression.py | 1 | 120-frame replay of the sample video twice → identical fused labels/events; fingerprint stored in `tests/regression/replay_fingerprint.<backend>.json` |
 
 `ruff check src tests scripts` → All checks passed.
 
@@ -180,8 +180,16 @@ committed).
 * Training-time jitter + unfloored scaler std on a constant feature → chance-level model (§3); fixed with `FeatureScaler.MIN_STD`.
 * `.gitignore` trailing comments on the `!models/...` lines silently kept the converted HandHygiene forest out of the first commit → comments moved to their own lines; both artifacts are now tracked.
 
-## 5. Not verified (see IMPLEMENTATION_STATUS.md)
+## 5. macOS run (2026-11-07, MacBook Apple M3, macOS 26.5.2)
 
-macOS Apple-Silicon install; webcam path; Picamera2 capture, B0176 focus control, `/dev/fb0`
+`bash SETUP_MAC.command`: uv 0.13.7 → Python 3.11 + arm64 wheels (cv2 4.11.0, mediapipe 0.10.21,
+torch 2.6.0), `.env` written, MediaPipe `hand_landmarker.task` downloaded (so the tracker uses the
+`tasks` backend there), all artifacts found; pytest 118 passed + the replay-regression test, which
+had compared against the Linux (`solutions` backend) fingerprint – now one fingerprint per backend.
+Live pipeline on the M3: ~23 FPS on the sample video, tracker 34–52 ms/frame.
+
+## 6. Not verified (see IMPLEMENTATION_STATUS.md)
+
+webcam path; Picamera2 capture, B0176 focus control, `/dev/fb0`
 rendering, RIF6 HDMI mode, Wi-Fi throughput on the Pi 3 A+; accuracy of any model on our
 camera; fitted fusion weights / calibrators (current weights are chosen from evidence, not fitted).
