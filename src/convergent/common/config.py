@@ -85,6 +85,18 @@ class SkiaConfig(_Cfg):
     feed_mode: Literal["raw_label", "anatomical"] = "raw_label"
 
 
+class TemporalV2Config(_Cfg):
+    """Hand-relative temporal classifier (detection/pair_adapter.py). Window length, classes and
+    architecture come from the artifact; these are the runtime knobs only."""
+
+    enabled: bool = True
+    artifact_dir: str = "models/temporal_v2/current"
+    unknown_threshold: float = 0.4
+    smooth_s: float = 0.4      # time constant of the probability smoothing (0 = off)
+    hold_s: float = 0.35       # keep answering this long after the last visible hand (never longer than the model was trained for)
+    symmetric: bool = True     # average the prediction over both hand-slot orders
+
+
 class YoloConfig(_Cfg):
     enabled: bool = True
     weights_path: str = "models/yolo/handwash_yolov5.pt"
@@ -100,7 +112,7 @@ class YoloConfig(_Cfg):
 class FusionConfig(_Cfg):
     method: Literal["reliability_weighted", "meta"] = "reliability_weighted"
     weights: dict[str, float] = Field(
-        default_factory=lambda: {"handhygiene": 1.0, "skia_temporal": 1.0, "yolo": 1.0}
+        default_factory=lambda: {"handhygiene": 1.0, "skia_temporal": 1.0, "yolo": 1.0, "temporal_v2": 1.0}
     )
     unknown_threshold: float = 0.45
     contradiction_margin: float = 0.15
@@ -126,6 +138,24 @@ class RegionsConfig(_Cfg):
     min_sufficient_duration_s: float = 3.0
     partial_visibility_weight: float = 0.5
     use_unresolved_side_evidence: bool = False
+
+
+class ScoringConfig(_Cfg):
+    """Wash score rules (see src/convergent/scoring/wash_score.py). First guesses: tune on real washes."""
+
+    # Scored techniques in suggested (WHO) order. Must match detection.labels.SCORED_TECHNIQUES names.
+    steps: list[str] = Field(default_factory=lambda: [
+        "palm_to_palm", "back_of_hand", "interlaced_fingers", "backs_of_fingers",
+        "thumb_rubbing", "fingertip_rubbing", "wrist_rubbing",
+    ])
+    step_min_s: float = 3.0        # validated seconds (summed across tries, either hand) for a step to count as done
+    steps_required: int = 5        # steps that must be done to finish
+    total_min_s: float = 20.0      # summed validated seconds across all steps needed to finish
+    step_points: int = 10          # max points per step (partial credit up to step_min_s)
+    time_points: int = 30          # max points for total time (caps at total_min_s)
+    two_star_steps: int = 3        # 2 stars: this many steps done ...
+    two_star_total_s: float = 10.0  # ... or this much total time
+    backfill_s: float = 0.0        # when a step is validated, also credit up to this much of the unrecognized time just before it (recognition lag)
 
 
 class SmoothingConfig(_Cfg):
@@ -160,9 +190,11 @@ class PipelineConfig(_Cfg):
     handhygiene: HandHygieneConfig = Field(default_factory=HandHygieneConfig)
     skia: SkiaConfig = Field(default_factory=SkiaConfig)
     yolo: YoloConfig = Field(default_factory=YoloConfig)
+    temporal_v2: TemporalV2Config = Field(default_factory=TemporalV2Config)
     fusion: FusionConfig = Field(default_factory=FusionConfig)
     temporal: TemporalConfig = Field(default_factory=TemporalConfig)
     regions: RegionsConfig = Field(default_factory=RegionsConfig)
+    scoring: ScoringConfig = Field(default_factory=ScoringConfig)
     projector: ProjectorConfig = Field(default_factory=ProjectorConfig)
     backend: BackendClientConfig = Field(default_factory=BackendClientConfig)
     labels_path: str = "configs/labels.yaml"

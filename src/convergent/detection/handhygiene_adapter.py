@@ -188,18 +188,18 @@ class HandHygieneAdapter(Classifier):
         probs = {self._class_to_native[c]: float(p) for c, p in zip(classes, proba, strict=True)}
         best_i = int(np.argmax(proba))
         best_p = float(proba[best_i])
+        canon_probs: dict[str, float] = {}
+        for n, p in probs.items():
+            k = self.label_map.canonical_for(n).key
+            canon_probs[k] = canon_probs.get(k, 0.0) + p
         if best_p < self.cfg.unknown_threshold:
             return self.unknown_prediction(ts, ts, probs, [hands.frame_id], sw.ms,
-                                           f"max prob {best_p:.2f} < {self.cfg.unknown_threshold} (upstream 'no step')")
+                                           f"max prob {best_p:.2f} < {self.cfg.unknown_threshold} (upstream 'no step')", canon_probs)
         native = self._class_to_native[classes[best_i]]
         if self.cfg.legacy_vote_buffer > 1:
             self._votes.append(classes[best_i])
             native = self._class_to_native[Counter(self._votes).most_common(1)[0][0]]
         canonical = self.label_map.canonical_for(native)
-        canon_probs: dict[str, float] = {}
-        for n, p in probs.items():
-            k = self.label_map.canonical_for(n).key
-            canon_probs[k] = canon_probs.get(k, 0.0) + p
         return valid_prediction(self.model_id, self.model_version, ts, ts, [hands.frame_id], native,
                                 self.label_map.native_order.index(native), canonical, probs, canon_probs,
                                 best_p, sw.ms, calibrated=False)

@@ -1,0 +1,595 @@
+{
+  "architecture": "tcn",
+  "classes": [
+    "palm_to_palm",
+    "back_of_hand",
+    "interlaced_fingers",
+    "backs_of_fingers",
+    "thumb_rubbing",
+    "fingertip_rubbing",
+    "wrist_rubbing",
+    "none"
+  ],
+  "created_at_utc": "2026-11-12T07:33:51.315Z",
+  "dataset_provenance": {
+    "data": "data/landmarks_v2",
+    "datasets": {
+      "kaggle": 18222,
+      "metc": 50551,
+      "own": 1675
+    },
+    "recordings": 536,
+    "recordings_by_dataset": {
+      "kaggle": 300,
+      "metc": 212,
+      "own": 24
+    },
+    "windows": 70448
+  },
+  "dropout": 0.25,
+  "feature_dim": 183,
+  "feed_mode": "slots",
+  "framework": "torch",
+  "hidden_size": 128,
+  "hold_frames": 5,
+  "max_gap_s": 1.0,
+  "metrics": {
+    "best_val_macro_f1": 0.8763601610615331,
+    "calibration": {
+      "ece_after": 0.01660867288288927,
+      "ece_before": 0.016608672721156275,
+      "temperature": 1.0
+    },
+    "history_epochs": 10,
+    "test": {
+      "accuracy": 0.8454126173612255,
+      "confusion": [
+        [
+          1353,
+          23,
+          43,
+          2,
+          0,
+          46,
+          0,
+          51
+        ],
+        [
+          4,
+          1651,
+          68,
+          13,
+          14,
+          1,
+          1,
+          23
+        ],
+        [
+          71,
+          33,
+          898,
+          13,
+          14,
+          5,
+          0,
+          42
+        ],
+        [
+          2,
+          0,
+          1,
+          1179,
+          13,
+          17,
+          21,
+          28
+        ],
+        [
+          67,
+          2,
+          50,
+          35,
+          1215,
+          22,
+          4,
+          135
+        ],
+        [
+          47,
+          17,
+          3,
+          40,
+          19,
+          1917,
+          0,
+          221
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          492,
+          7
+        ],
+        [
+          70,
+          89,
+          30,
+          129,
+          47,
+          230,
+          64,
+          1560
+        ]
+      ],
+      "macro_f1": 0.8545191395078892,
+      "note": "held-out groups (never used for any decision)",
+      "precision": {
+        "back_of_hand": 0.9096,
+        "backs_of_fingers": 0.8356,
+        "fingertip_rubbing": 0.8566,
+        "interlaced_fingers": 0.8216,
+        "none": 0.7547,
+        "palm_to_palm": 0.8383,
+        "thumb_rubbing": 0.9191,
+        "wrist_rubbing": 0.8454
+      },
+      "recall": {
+        "back_of_hand": 0.9301,
+        "backs_of_fingers": 0.935,
+        "fingertip_rubbing": 0.8467,
+        "interlaced_fingers": 0.8346,
+        "none": 0.703,
+        "palm_to_palm": 0.8913,
+        "thumb_rubbing": 0.7941,
+        "wrist_rubbing": 0.986
+      },
+      "support": 12142
+    },
+    "test_kaggle": {
+      "accuracy": 0.9840051183621241,
+      "confusion": [
+        [
+          364,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          449,
+          3,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          20,
+          0,
+          227,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          549,
+          0,
+          15,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          517,
+          0,
+          0,
+          4
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          478,
+          0,
+          1
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          492,
+          7
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      ],
+      "macro_f1": 0.9829798911428622,
+      "note": "held-out groups of dataset kaggle",
+      "precision": {
+        "back_of_hand": 1.0,
+        "backs_of_fingers": 1.0,
+        "fingertip_rubbing": 0.9696,
+        "interlaced_fingers": 0.987,
+        "palm_to_palm": 0.9479,
+        "thumb_rubbing": 1.0,
+        "wrist_rubbing": 1.0
+      },
+      "recall": {
+        "back_of_hand": 0.9934,
+        "backs_of_fingers": 0.9734,
+        "fingertip_rubbing": 0.9979,
+        "interlaced_fingers": 0.919,
+        "palm_to_palm": 1.0,
+        "thumb_rubbing": 0.9923,
+        "wrist_rubbing": 0.986
+      },
+      "support": 3126
+    },
+    "test_metc": {
+      "accuracy": 0.797360248447205,
+      "confusion": [
+        [
+          989,
+          23,
+          43,
+          2,
+          0,
+          46,
+          0,
+          51
+        ],
+        [
+          4,
+          1202,
+          65,
+          13,
+          14,
+          1,
+          1,
+          23
+        ],
+        [
+          51,
+          33,
+          671,
+          13,
+          14,
+          5,
+          0,
+          42
+        ],
+        [
+          2,
+          0,
+          1,
+          630,
+          13,
+          2,
+          21,
+          28
+        ],
+        [
+          67,
+          2,
+          50,
+          35,
+          698,
+          22,
+          4,
+          131
+        ],
+        [
+          47,
+          17,
+          3,
+          40,
+          19,
+          1439,
+          0,
+          220
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          70,
+          89,
+          30,
+          129,
+          47,
+          230,
+          64,
+          1560
+        ]
+      ],
+      "macro_f1": 0.8057040017128837,
+      "note": "held-out groups of dataset metc",
+      "precision": {
+        "back_of_hand": 0.8799,
+        "backs_of_fingers": 0.7309,
+        "fingertip_rubbing": 0.8246,
+        "interlaced_fingers": 0.7775,
+        "none": 0.7591,
+        "palm_to_palm": 0.8041,
+        "thumb_rubbing": 0.8671
+      },
+      "recall": {
+        "back_of_hand": 0.9085,
+        "backs_of_fingers": 0.9039,
+        "fingertip_rubbing": 0.8062,
+        "interlaced_fingers": 0.8094,
+        "none": 0.703,
+        "palm_to_palm": 0.857,
+        "thumb_rubbing": 0.6918
+      },
+      "support": 9016
+    },
+    "val": {
+      "accuracy": 0.8653327128897161,
+      "confusion": [
+        [
+          984,
+          13,
+          13,
+          0,
+          2,
+          1,
+          0,
+          25
+        ],
+        [
+          5,
+          1355,
+          66,
+          5,
+          0,
+          0,
+          0,
+          24
+        ],
+        [
+          63,
+          148,
+          906,
+          8,
+          1,
+          9,
+          0,
+          59
+        ],
+        [
+          2,
+          0,
+          1,
+          1191,
+          17,
+          1,
+          0,
+          14
+        ],
+        [
+          3,
+          8,
+          3,
+          19,
+          1123,
+          1,
+          3,
+          72
+        ],
+        [
+          17,
+          3,
+          12,
+          24,
+          6,
+          1183,
+          0,
+          120
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          320,
+          0
+        ],
+        [
+          55,
+          79,
+          175,
+          155,
+          68,
+          94,
+          53,
+          2236
+        ]
+      ],
+      "macro_f1": 0.8763601610615331,
+      "note": "validation groups (model selection)",
+      "precision": {
+        "back_of_hand": 0.8437,
+        "backs_of_fingers": 0.8495,
+        "fingertip_rubbing": 0.9178,
+        "interlaced_fingers": 0.7704,
+        "none": 0.8769,
+        "palm_to_palm": 0.8716,
+        "thumb_rubbing": 0.9228,
+        "wrist_rubbing": 0.8511
+      },
+      "recall": {
+        "back_of_hand": 0.9313,
+        "backs_of_fingers": 0.9715,
+        "fingertip_rubbing": 0.8667,
+        "interlaced_fingers": 0.7588,
+        "none": 0.7671,
+        "palm_to_palm": 0.948,
+        "thumb_rubbing": 0.9115,
+        "wrist_rubbing": 1.0
+      },
+      "support": 10745
+    }
+  },
+  "min_present_frames": 8,
+  "model_id": "temporal_v2",
+  "model_version": "2.0.0",
+  "notes": "{\"augmentation\": {\"swap\": true, \"mirror\": true, \"tilt_deg\": 30.0, \"stretch\": 0.1, \"hand_scale\": 0.1, \"offset\": 0.05, \"jitter\": 0.0025, \"drop_hand_p\": 0.35, \"drop_all_p\": 0.1}, \"speed_range\": [0.75, 1.3], \"dataset_weights\": {\"own\": 12.0}, \"lr\": 0.0005, \"batch_size\": 256, \"weight_decay\": 0.0001, \"seed\": 0, \"symmetric_inference\": true}",
+  "num_layers": 5,
+  "preprocessing_version": "pair-relative-v2",
+  "split": {
+    "grouping": "<dataset>:<group> (wash / person / recording round)",
+    "test_groups": [
+      "kaggle:004",
+      "kaggle:007",
+      "kaggle:014",
+      "kaggle:017",
+      "metc:2021-06-30_13",
+      "metc:2021-06-30_14",
+      "metc:2021-06-30_2",
+      "metc:2021-06-30_5",
+      "metc:2021-06-30_9",
+      "metc:2021-07-01_31",
+      "metc:2021-07-01_34",
+      "metc:2021-07-01_36",
+      "metc:2021-08-10_42",
+      "metc:2021-08-12_62",
+      "metc:2021-08-12_65"
+    ],
+    "test_windows": 12142,
+    "train_groups": [
+      "kaggle:001",
+      "kaggle:002",
+      "kaggle:003",
+      "kaggle:006",
+      "kaggle:008",
+      "kaggle:009",
+      "kaggle:011",
+      "kaggle:012",
+      "kaggle:013",
+      "kaggle:015",
+      "kaggle:016",
+      "kaggle:018",
+      "kaggle:020",
+      "kaggle:021",
+      "kaggle:022",
+      "kaggle:024",
+      "kaggle:025",
+      "metc:2021-06-30_1",
+      "metc:2021-06-30_12",
+      "metc:2021-06-30_15",
+      "metc:2021-06-30_16",
+      "metc:2021-06-30_17",
+      "metc:2021-06-30_3",
+      "metc:2021-06-30_6",
+      "metc:2021-06-30_7",
+      "metc:2021-06-30_8",
+      "metc:2021-07-01_18",
+      "metc:2021-07-01_19",
+      "metc:2021-07-01_20",
+      "metc:2021-07-01_21",
+      "metc:2021-07-01_22",
+      "metc:2021-07-01_23",
+      "metc:2021-07-01_24",
+      "metc:2021-07-01_26",
+      "metc:2021-07-01_27",
+      "metc:2021-07-01_28",
+      "metc:2021-07-01_29",
+      "metc:2021-07-01_30",
+      "metc:2021-07-01_32",
+      "metc:2021-07-01_33",
+      "metc:2021-08-10_38",
+      "metc:2021-08-10_39",
+      "metc:2021-08-10_40",
+      "metc:2021-08-10_41",
+      "metc:2021-08-10_44",
+      "metc:2021-08-10_45",
+      "metc:2021-08-10_46",
+      "metc:2021-08-10_48",
+      "metc:2021-08-10_49",
+      "metc:2021-08-10_50",
+      "metc:2021-08-10_51",
+      "metc:2021-08-10_52",
+      "metc:2021-08-10_53",
+      "metc:2021-08-10_54",
+      "metc:2021-08-12_58",
+      "metc:2021-08-12_59",
+      "metc:2021-08-12_63",
+      "metc:2021-08-12_64",
+      "metc:2021-08-12_66",
+      "metc:2021-08-12_67",
+      "metc:2021-08-12_68",
+      "metc:2021-08-12_69",
+      "metc:2021-08-13_71",
+      "metc:2021-08-13_72",
+      "metc:2021-08-13_74",
+      "metc:2021-08-13_75",
+      "metc:2021-08-13_76",
+      "own:down1",
+      "own:down2",
+      "own:down3"
+    ],
+    "train_windows": 47561,
+    "val_groups": [
+      "kaggle:005",
+      "kaggle:010",
+      "kaggle:019",
+      "kaggle:023",
+      "metc:2021-06-30_10",
+      "metc:2021-06-30_11",
+      "metc:2021-06-30_4",
+      "metc:2021-07-01_25",
+      "metc:2021-07-01_35",
+      "metc:2021-08-10_37",
+      "metc:2021-08-10_47",
+      "metc:2021-08-12_60",
+      "metc:2021-08-12_61",
+      "metc:2021-08-13_70",
+      "metc:2021-08-13_73"
+    ],
+    "val_windows": 10745
+  },
+  "stride_frames": 3,
+  "target_fps": 15.0,
+  "use_presence": false,
+  "window_frames": 48
+}

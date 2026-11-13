@@ -88,6 +88,49 @@ folder with overlapping file names (`{count}.jpg`) and then lists them with stri
 `generalize_recognition_timestep` in the upstream trainer reshapes those shuffled rows into
 "sequences" – this is exactly the mistake the corrected pipeline avoids.
 
+## The hand-relative temporal model (`temporal_v2`) – what the pipeline should use
+
+Why it exists (measured on webcam runs, 2026-11-10): the v1 LSTM above reads raw image
+coordinates in MediaPipe's left/right slots. On Kaggle footage the tracker sees one hand in
+~97 % of frames, so the model learned "which single hand is visible"; on a live camera with two
+tracked hands it called palm-to-palm "interlaced" (0–3 % palm recall with two hands), and the
+fused label flipped ~200 times a minute. `temporal_v2` replaces the representation, the
+slotting, the class list and the windowing:
+
+| | v1 `skia_temporal` | v2 `temporal_v2` |
+|---|---|---|
+| Features | raw x, y, z in the image | per hand: 21 landmarks in the hand's own frame (wrist origin, in-plane rotation removed, divided by hand size), wrist velocity / turn rate / size change; the other hand's key points seen from this hand; palm distance; presence (183 values, `detection/pair_features.py`) |
+| Invariant to | ±8 % shift, ±12 % scale (augmentation only) | translation, scale, in-plane rotation **by construction**; camera tilt, speed, hand size, a hidden hand by augmentation |
+| Hand slots | MediaPipe handedness label; a hand without a resolved side is dropped | position continuity (`HandSlotter`), unassigned hands included; trained with random slot swaps and evaluated on both orders |
+| Classes | 12 (Kaggle left/right variants) | the 7 techniques + `none` (not washing). No left/right: the coverage layer will get the side from geometry |
+| Window | 24 frames *with a hand*; any 0.25 s dropout resets it (1.6 s warm-up) | the last N frames on the frame clock; empty frames stay in, short history is left-padded; answers after 8 frames with a hand and keeps its history through dropouts |
+| Model | 2-layer LSTM | temporal convolution network (residual dilated blocks) – `lstm_model._build_tcn`; GRU also available |
+| Output | raw softmax | temperature-calibrated on validation subjects (`calibrator.json`), then smoothed (`temporal_v2.smooth_s`) |
+| Tracker for the training data | legacy `solutions` graph | the same backend and settings as the live pipeline (`configs/development.yaml: tracker`) |
+
+Data it can train on (all extracted with `scripts/extract_landmarks_v2.py` into `data/landmarks_v2/`, git-ignored):
+
+* **METC** (Zenodo 10.5281/zenodo.5808789, CC BY 4.0, 2.1 GB, no login): 212 washes by medical
+  students, a label on every frame (WHO steps 1–6, 0 = other). Top-down sink camera. Frames
+  within ±0.5 s of a label change are marked `ignore` (the labels were made live). No wrist step.
+* **Kaggle** `realtimear/hand-wash-dataset` (CC BY-SA 4.0, needs a Kaggle login): ~290 clips from
+  25 washes, one label per clip. The only public source of wrist rubbing. Left/right folders are merged.
+* **Own clips** from `convergent record` (`docs/RECORDING_GUIDE.md`): one clip per class per round,
+  recorded on the camera we actually use. Weighted ×4 in training; whole rounds are held out for testing.
+
+```bash
+# 1. landmarks (re-run any time; existing files are skipped)
+.venv/bin/python scripts/extract_landmarks_v2.py --metc data/METC --kaggle data/HandWashDataset --own data/own
+# 2. train (Apple GPU), hold out own rounds for the honest test, install for the live pipeline
+.venv/bin/python scripts/train_temporal_v2.py --out runs/v2/<name> --device mps --test-own-rounds down2,front2 --install
+# 3. measure through the REAL pipeline (tracker + fusion + validator), before/after
+.venv/bin/python scripts/benchmark_recognition.py --metc data/METC --rounds down2,front2 --out runs/benchmark.json
+```
+
+Splits are by person / wash / recording round (`pair_training.partition_groups`, stable per
+dataset), so the benchmark's held-out METC subjects are exactly the ones training never saw.
+Results: `docs/TEST_RESULTS.md` §7.
+
 ## Training / registering YOLO
 
 ```bash

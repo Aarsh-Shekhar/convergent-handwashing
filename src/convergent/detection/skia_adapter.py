@@ -103,6 +103,8 @@ class SkiaTemporalAdapter(Classifier):
             return self._status
         try:
             art = TemporalArtifact.load(d)
+            if art.meta.preprocessing_version != self.preprocessing_version:
+                raise ValueError(f"artifact preprocessing {art.meta.preprocessing_version!r} is not a skia-sequence artifact")
             classes = list(art.meta.classes)
             unknown = [c for c in classes if c not in self.label_map.mappings]
             if unknown:
@@ -162,15 +164,15 @@ class SkiaTemporalAdapter(Classifier):
         probs = {c: float(p) for c, p in zip(classes, proba, strict=True)}
         best_i = int(np.argmax(proba))
         best_p = float(proba[best_i])
-        if best_p < self.cfg.unknown_threshold:
-            return self.unknown_prediction(window.start_ts, window.end_ts, probs, window.frame_ids, sw.ms,
-                                           f"max prob {best_p:.2f} < {self.cfg.unknown_threshold}")
-        native = classes[best_i]
-        canonical = self.label_map.canonical_for(native)
         canon_probs: dict[str, float] = {}
         for n, p in probs.items():
             k = self.label_map.canonical_for(n).key
             canon_probs[k] = canon_probs.get(k, 0.0) + p
+        if best_p < self.cfg.unknown_threshold:
+            return self.unknown_prediction(window.start_ts, window.end_ts, probs, window.frame_ids, sw.ms,
+                                           f"max prob {best_p:.2f} < {self.cfg.unknown_threshold}", canon_probs)
+        native = classes[best_i]
+        canonical = self.label_map.canonical_for(native)
         return valid_prediction(self.model_id, self.model_version, window.start_ts, window.end_ts, window.frame_ids,
                                 native, self.label_map.native_order.index(native) if native in self.label_map.native_order else None,
                                 canonical, probs, canon_probs, best_p, sw.ms)

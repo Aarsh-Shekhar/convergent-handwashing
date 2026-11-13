@@ -4,22 +4,17 @@
     "handhygiene": true,
     "skia_temporal": true,
     "skia_legacy": false,
-    "yolo": false
+    "yolo": false,
+    "temporal_v2": true
   },
   "frames": 120,
   "events": [
     [
-      "interlaced_fingers",
+      "palm_to_palm",
       "both",
-      0.0,
-      1.533
-    ],
-    [
-      "interlaced_fingers",
-      "both",
-      3.133,
-      4.533
+      0.467,
+      7.933
     ]
   ],
-  "sha256": "ae03162c3f00e5261bff508eda617e61902f1a8f47881e3063512d6eded2c94e"
+  "sha256": "11450dcd22a0f2844953fbb0071c48e978b1a7b1c189cd4d4bb801e1e667189b"
 }

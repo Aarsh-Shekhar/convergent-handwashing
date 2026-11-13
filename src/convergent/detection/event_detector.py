@@ -33,6 +33,11 @@ class EventDetector:
         self._pending: GestureEvent | None = None  # last validated event, held for possible merge
         self._emitted_keys: dict[str, float] = {}
 
+    @property
+    def pending(self) -> GestureEvent | None:
+        """The validated event held back for a possible merge (read-only; not yet emitted)."""
+        return self._pending
+
     def reset(self) -> None:
         self.validator.reset()
         self.state = EventStreamState()

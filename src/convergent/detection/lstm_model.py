@@ -23,6 +23,8 @@ from typing import Any
 import numpy as np
 
 SKIA_TEMPORAL_PREPROCESSING_VERSION = "skia-sequence-v1"  # left(63)+right(63) raw landmarks + presence(2)
+PAIR_PREPROCESSING_VERSION = "pair-relative-v2"  # hand-relative features, see detection/pair_features.py
+SUPPORTED_PREPROCESSING = (SKIA_TEMPORAL_PREPROCESSING_VERSION, PAIR_PREPROCESSING_VERSION)
 FEATURE_DIM = 126
 PRESENCE_DIM = 2
 
@@ -42,6 +44,8 @@ class TemporalArtifactMeta:
     stride_frames: int = 1
     target_fps: float = 15.0
     max_gap_s: float = 0.25
+    min_present_frames: int = 0  # pair-relative-v2: frames with a hand needed in the window before predicting
+    hold_frames: int = 0  # pair-relative-v2: the model was also trained to answer this many frames after the last visible hand
     preprocessing_version: str = SKIA_TEMPORAL_PREPROCESSING_VERSION
     feed_mode: str = "raw_label"
     dataset_provenance: dict[str, Any] = field(default_factory=dict)
@@ -100,6 +104,13 @@ def build_model(meta: TemporalArtifactMeta):  # -> torch.nn.Module (import defer
     import torch
     from torch import nn
 
+    if meta.architecture == "tcn":
+        return _build_tcn(meta)
+    if meta.architecture == "gru":
+        return _build_gru(meta)
+    if meta.architecture != "lstm":
+        raise ValueError(f"unknown temporal architecture {meta.architecture!r}")
+
     class TemporalLandmarkLSTM(nn.Module):
         def __init__(self) -> None:
             super().__init__()
@@ -117,6 +128,66 @@ def build_model(meta: TemporalArtifactMeta):  # -> torch.nn.Module (import defer
             return self.head(out[:, -1, :])
 
     return TemporalLandmarkLSTM()
+
+
+def _build_tcn(meta: TemporalArtifactMeta):
+    """Temporal convolution network: ``num_layers`` residual blocks with dilations 1, 2, 4, ...
+    (``hidden_size`` channels), then mean + recent-frames pooling and a small head."""
+    import torch
+    from torch import nn
+
+    class Block(nn.Module):
+        def __init__(self, ch: int, dilation: int, dropout: float) -> None:
+            super().__init__()
+            self.net = nn.Sequential(
+                nn.Conv1d(ch, ch, 3, padding=dilation, dilation=dilation), nn.GroupNorm(8, ch), nn.ReLU(), nn.Dropout(dropout),
+                nn.Conv1d(ch, ch, 3, padding=dilation, dilation=dilation), nn.GroupNorm(8, ch))
+            self.act = nn.ReLU()
+
+        def forward(self, x: torch.Tensor) -> torch.Tensor:
+            return self.act(x + self.net(x))
+
+    class TemporalConvNet(nn.Module):
+        def __init__(self) -> None:
+            super().__init__()
+            ch = meta.hidden_size
+            self.inp = nn.Sequential(nn.Dropout(meta.dropout * 0.5), nn.Conv1d(meta.input_dim, ch, 1), nn.GroupNorm(8, ch), nn.ReLU())
+            self.blocks = nn.Sequential(*[Block(ch, 2 ** i, meta.dropout) for i in range(meta.num_layers)])
+            self.head = nn.Sequential(nn.Dropout(meta.dropout), nn.Linear(2 * ch, ch), nn.ReLU(), nn.Linear(ch, len(meta.classes)))
+
+        def forward(self, x: torch.Tensor) -> torch.Tensor:  # x: (B, T, D)
+            if x.dim() != 3:
+                raise ValueError("expected (batch, time, features)")
+            if x.shape[1] < 2:
+                raise ValueError("temporal model requires more than one time step")
+            h = self.blocks(self.inp(x.transpose(1, 2)))  # (B, C, T)
+            recent = h[:, :, -max(1, h.shape[2] // 4):].mean(dim=2)
+            return self.head(torch.cat([h.mean(dim=2), recent], dim=1))
+
+    return TemporalConvNet()
+
+
+def _build_gru(meta: TemporalArtifactMeta):
+    import torch
+    from torch import nn
+
+    class TemporalGRU(nn.Module):
+        def __init__(self) -> None:
+            super().__init__()
+            self.gru = nn.GRU(meta.input_dim, meta.hidden_size, num_layers=meta.num_layers, batch_first=True, bidirectional=True,
+                              dropout=meta.dropout if meta.num_layers > 1 else 0.0)
+            self.head = nn.Sequential(nn.Dropout(meta.dropout), nn.Linear(4 * meta.hidden_size, meta.hidden_size), nn.ReLU(),
+                                      nn.Linear(meta.hidden_size, len(meta.classes)))
+
+        def forward(self, x: torch.Tensor) -> torch.Tensor:
+            if x.dim() != 3:
+                raise ValueError("expected (batch, time, features)")
+            if x.shape[1] < 2:
+                raise ValueError("temporal model requires more than one time step")
+            out, _ = self.gru(x)
+            return self.head(torch.cat([out.mean(dim=1), out[:, -1, :]], dim=1))
+
+    return TemporalGRU()
 
 
 def assemble_input(features: np.ndarray, presence: np.ndarray | None, scaler: FeatureScaler, use_presence: bool) -> np.ndarray:
@@ -148,8 +219,8 @@ class TemporalArtifact:
         meta = TemporalArtifactMeta.from_json(meta_p.read_text(encoding="utf-8"))
         if meta.window_frames < 2:
             raise ValueError("artifact window_frames < 2 is not a temporal model")
-        if meta.preprocessing_version != SKIA_TEMPORAL_PREPROCESSING_VERSION:
-            raise ValueError(f"preprocessing version {meta.preprocessing_version!r} != {SKIA_TEMPORAL_PREPROCESSING_VERSION!r}")
+        if meta.preprocessing_version not in SUPPORTED_PREPROCESSING:
+            raise ValueError(f"preprocessing version {meta.preprocessing_version!r} not in {SUPPORTED_PREPROCESSING!r}")
         scaler = FeatureScaler.load(scaler_p)
         model = build_model(meta)
         state = torch.load(model_p, map_location=device, weights_only=True)

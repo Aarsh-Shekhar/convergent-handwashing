@@ -69,6 +69,7 @@ Every command below is real (`.venv/bin/python -m convergent.cli --help`):
 | Real Pi agent (on the Pi) | `python -m convergent.pi_agent --config ~/pi_agent.yaml` (installed as a systemd service by `install_pi.sh`) |
 | Projection calibration | `.venv/bin/python -m convergent.cli calibrate synthetic` · `… calibrate pattern --kind chessboard` · `… calibrate from-images --images cam1.jpg …` · `… calibrate from-pairs --pairs pairs.json --image-size 640 480` |
 | Model evaluation (with ablation) | `.venv/bin/python scripts/evaluate_models.py --config configs/evaluation.yaml --video <mp4> --reference <json> --ablation --out runs/evaluation.json` |
+| Train the recognition model the pipeline uses (`temporal_v2`) | `scripts/extract_landmarks_v2.py` → `scripts/train_temporal_v2.py --install` → `scripts/benchmark_recognition.py` (see `docs/MODEL_INTEGRATION.md`, results in `docs/TEST_RESULTS.md` §7) |
 | Train / sweep the temporal LSTM | `scripts/extract_landmark_sequences.py` → `scripts/sweep_lstm.py` (or a single `scripts/train_lstm.py --data … --out models/skia_temporal/<version>`) |
 | Train YOLO (optional branch, GPU recommended) | `.venv/bin/python scripts/train_yolo.py --dataset <HandWashDataset_yoloFormat> --epochs 100 --out runs/yolo_handwash` |
 | Artifact status | `.venv/bin/python -m convergent.cli models` |

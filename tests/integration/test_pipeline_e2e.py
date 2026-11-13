@@ -57,6 +57,7 @@ def base_config(tmp_path, max_frames=60, forest=True, temporal=None):
         "handhygiene": {"enabled": forest, "model_path": str(constant_forest(tmp_path)) if forest else str(tmp_path / "none.npz"), "unknown_threshold": 0.3},
         "skia": {"enabled": temporal is not None, "temporal_artifact_dir": str(temporal) if temporal else str(tmp_path / "no_art")},
         "yolo": {"enabled": False},
+        "temporal_v2": {"enabled": False},  # these tests script the v1 branches; the trained v2 artifact must not vote
         "temporal": {"min_duration_s": 1.0, "max_gap_s": 0.5},
         "projector": {"profile_path": None},
         "results_dir": str(tmp_path / "runs"),
@@ -88,6 +89,11 @@ def test_deterministic_replay_produces_identical_events_and_persists_to_backend(
     assert (tmp_path / "runs" / summary.session_id / "frames.jsonl").exists()
     recs = [json.loads(line) for line in (tmp_path / "runs" / summary.session_id / "frames.jsonl").read_text().splitlines()]
     assert len(recs) == 90 and recs[-1]["fused"]["participating"] == ["handhygiene"]
+    from convergent.detection.pair_training import RawRecording
+
+    land = RawRecording.load(tmp_path / "runs" / summary.session_id / "landmarks.npz")  # hand points for replay / labelling
+    assert land.hands.shape == (90, 2, 21, 3) and float(land.presence.min(axis=1).mean()) > 0.9
+    assert "v2_top" in recs[-1]
     assert summary.progress["hands"]["left"]["regions"]["palm"]["status"] in ("sufficient", "partial")
     assert summary.progress["hands"]["left"]["regions"]["thumb"]["status"] == "unknown"
 
@@ -105,6 +111,56 @@ def test_deterministic_replay_produces_identical_events_and_persists_to_backend(
     assert session["model_versions"]["handhygiene"]["available"] is True and session["model_versions"]["yolo"]["available"] is False
     assert client.stats.predictions_sent > 0 and client.stats.failures == 0
     client.close()
+
+
+def test_wash_score_live_final_and_saved_to_backend(tmp_path):
+    cfg = base_config(tmp_path, max_frames=90)  # 6 s of constant palm-to-palm
+    client, app = inprocess_client(TOKEN, f"sqlite:///{tmp_path / 'score.db'}")
+    pipe = Pipeline(cfg, tracker=HandTracker(cfg.tracker, ScriptedBackend(two_hand_script(90))), backend_client=client, deterministic=True)
+    pipe.load_models()
+    results = []
+    pipe.on_frame = results.append
+    summary = pipe.run()
+    assert all(r.score is not None for r in results)
+    live_palm = [r.score.steps[0].seconds for r in results]
+    assert all(b >= a for a, b in zip(live_palm, live_palm[1:], strict=False)) and live_palm[-1] > 3.0
+    sc = summary.score
+    assert sc["steps"][0]["technique"] == "palm_to_palm" and sc["steps"][0]["done"]
+    assert sc["steps_done"] == 1 and not sc["finished"] and sc["stars"] == 1 and sc["next_step"] == "back_of_hand"
+    assert sc["steps"][0]["seconds"] == pytest.approx(sum(e.validated_duration_s for e in summary.events), abs=1e-3)
+    session = client._req("GET", f"/api/v1/sessions/{summary.session_id}")
+    assert session["stats"]["wash_score"] == sc
+    client.close()
+
+
+def test_stop_and_ctrl_c_still_return_summary_with_score(tmp_path):
+    cfg = base_config(tmp_path, max_frames=90)
+    pipe = Pipeline(cfg, tracker=HandTracker(cfg.tracker, ScriptedBackend(two_hand_script(90))), deterministic=True, save_results=True)
+    pipe.load_models()
+    seen = []
+
+    def stop_at_45(r):
+        seen.append(r)
+        if len(seen) == 45:
+            pipe.stop()
+
+    pipe.on_frame = stop_at_45
+    summary = pipe.run()
+    assert summary.frames == 45 and summary.score is not None and summary.score["steps"][0]["seconds"] > 0
+    assert (tmp_path / "runs" / summary.session_id / "summary.json").exists()
+
+    pipe2 = Pipeline(cfg, tracker=HandTracker(cfg.tracker, ScriptedBackend(two_hand_script(90))), deterministic=True)
+    pipe2.load_models()
+    count = [0]
+
+    def ctrl_c_at_45(r):
+        count[0] += 1
+        if count[0] == 45:
+            raise KeyboardInterrupt
+
+    pipe2.on_frame = ctrl_c_at_45
+    summary2 = pipe2.run()
+    assert summary2.score is not None and summary2.events and summary2.score["steps"][0]["seconds"] > 0
 
 
 def test_backend_failure_does_not_corrupt_session_progress(tmp_path):

@@ -21,6 +21,7 @@ import json
 import os
 import subprocess
 import sys
+import time
 from pathlib import Path
 from typing import Any
 
@@ -62,6 +63,17 @@ def _print_summary(summary) -> None:  # type: ignore[no-untyped-def]
         print(f"  {e.start_ts:7.2f}-{e.end_ts:7.2f}s {e.technique:<20} side={e.side.value:<10} dur={e.validated_duration_s:.2f}s conf={e.confidence:.2f} resolved={e.side_resolved}")
     if summary.progress:
         print(f"coverage_estimate={summary.progress['coverage_estimate']:.2f} (observed-evidence estimate, not cleanliness)")
+    sc = getattr(summary, "score", None)
+    if sc:
+        status = f"FINISHED at {sc['finished_at_ts']:.1f}s (score locked)" if sc["finished"] else "not finished"
+        print(f"wash score: {sc['stars']}/5 stars, {sc['points']} points, {status}")
+        print(f"  steps done {sc['steps_done']}/{sc['steps_required']} needed (each {sc['step_min_s']:.0f}s), "
+              f"total {sc['total_s']:.1f}s of {sc['total_min_s']:.0f}s needed")
+        for st in sc["steps"]:
+            print(f"  [{'x' if st['done'] else ' '}] {st['technique']:<20} {st['seconds']:5.1f}s")
+        if not sc["finished"] and sc["next_step"]:
+            print(f"  next suggested step: {sc['next_step']}")
+        print("  (score = recognized washing-motion time, not proof of clean hands)")
     if summary.results_dir:
         print(f"results: {summary.results_dir}")
     if summary.backend:
@@ -96,7 +108,7 @@ def cmd_camera(args: argparse.Namespace) -> int:
     if args.show:
         import cv2
 
-        from convergent.vision.overlays import render_overlay
+        from convergent.vision.overlays import draw_score_panel, render_overlay
 
         def _show(r):  # type: ignore[no-untyped-def]
             pass
@@ -106,21 +118,37 @@ def cmd_camera(args: argparse.Namespace) -> int:
 
         def _proc(frame):  # type: ignore[no-untyped-def]
             r = orig(frame)
-            img = render_overlay(frame, r.hands, [f"fused={r.fused.native_label or r.fused.status.value} conf={r.fused.confidence}"])
+            img = render_overlay(frame, r.hands, [f"fused={r.fused.native_label or r.fused.status.value} conf={r.fused.confidence}",
+                                                  "Esc = stop and print score"])
+            if r.score is not None:
+                draw_score_panel(img, r.score)
             cv2.imshow("convergent diagnostics", img)
             if cv2.waitKey(1) & 0xFF == 27:
-                raise KeyboardInterrupt
+                pipe.stop()  # normal end: summary, score and session end are saved
             return r
 
         pipe.process_frame = _proc  # type: ignore[method-assign]
     try:
         summary = pipe.run()
-    except KeyboardInterrupt:
+    except KeyboardInterrupt:  # Ctrl+C outside the frame loop (e.g. while models load)
         summary = None
     finally:
         pipe.close()
     if summary:
         _print_summary(summary)
+    return 0
+
+
+def cmd_record(args: argparse.Namespace) -> int:
+    from convergent.vision.recorder import RECORD_CLASSES, record_round
+
+    round_id = args.round or time.strftime("r%Y%m%d_%H%M%S")
+    classes = [c.strip() for c in args.classes.split(",")] if args.classes else list(RECORD_CLASSES)
+    print(f"recording round {round_id!r} (view={args.view}): {len(classes)} clips of {args.seconds:.0f}s. Esc stops.")
+    rdir = record_round(resolve_path(args.out), round_id, device=args.device, view=args.view, seconds=args.seconds,
+                        ready_s=args.ready, fps=args.fps, classes=classes)
+    done = sorted(p.stem for p in rdir.glob("*.mp4"))
+    print(f"round saved to {rdir} ({len(done)}/{len(classes)} clips: {', '.join(done)})")
     return 0
 
 
@@ -229,6 +257,17 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--show", action="store_true", help="show the diagnostic overlay window")
     common(p)
     p.set_defaults(func=cmd_camera)
+
+    p = sub.add_parser("record", help="record labelled washing clips from the webcam (one clip per step)")
+    p.add_argument("--device", type=int, default=0)
+    p.add_argument("--view", default="down", help="free-text camera view tag, e.g. down | front")
+    p.add_argument("--round", default=None, help="round name (default: timestamp)")
+    p.add_argument("--seconds", type=float, default=15.0, help="seconds recorded per step")
+    p.add_argument("--ready", type=float, default=5.0, help="get-ready countdown before each step")
+    p.add_argument("--fps", type=float, default=15.0)
+    p.add_argument("--classes", default=None, help="comma-separated subset to (re)record")
+    p.add_argument("--out", default="data/own")
+    p.set_defaults(func=cmd_record)
 
     p = sub.add_parser("network", help="run the pipeline on the Pi stream (starts the device gateway)")
     p.add_argument("--host", default="0.0.0.0")

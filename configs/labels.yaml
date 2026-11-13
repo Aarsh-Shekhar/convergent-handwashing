@@ -67,6 +67,19 @@ models:
       "6rt": {technique: fingertip_rubbing,  side: unresolved}
       "7lt": {technique: wrist_rubbing,      side: unresolved, note: "extension; not a core WHO rubbing technique"}
       "7rt": {technique: wrist_rubbing,      side: unresolved}
+  # temporal_v2 (detection/pair_adapter.py): trained on technique names directly; no left/right in the
+  # labels (Kaggle sides merged, METC has none), so sided techniques stay `unresolved`. `none` = not washing.
+  temporal_v2:
+    native_order: [palm_to_palm, back_of_hand, interlaced_fingers, backs_of_fingers, thumb_rubbing, fingertip_rubbing, wrist_rubbing, none]
+    map:
+      palm_to_palm:       {technique: palm_to_palm,       side: both}
+      back_of_hand:       {technique: back_of_hand,       side: unresolved}
+      interlaced_fingers: {technique: interlaced_fingers, side: both}
+      backs_of_fingers:   {technique: backs_of_fingers,   side: unresolved}
+      thumb_rubbing:      {technique: thumb_rubbing,      side: unresolved}
+      fingertip_rubbing:  {technique: fingertip_rubbing,  side: unresolved}
+      wrist_rubbing:      {technique: wrist_rubbing,      side: unresolved, note: "extension"}
+      none:               {technique: none,               side: unknown, note: "not washing (METC 'other', own idle clips)"}
   yolo:
     native_order: ["Step1", "Step2", "Step3", "Step4", "Step5", "Step6", "Step7"]
     map:

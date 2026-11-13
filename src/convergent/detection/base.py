@@ -154,9 +154,13 @@ class Classifier(ABC):
                                window_end_ts=ts, status=PredictionStatus.NO_INPUT, message=message)
 
     def unknown_prediction(self, start: float, end: float, probs: dict[str, float] | None, frame_ids: list[int],
-                           ms: float, message: str) -> ModelPrediction:
+                           ms: float, message: str, canonical_probs: dict[str, float] | None = None) -> ModelPrediction:
+        """The branch saw input but will not name a technique. Pass ``canonical_probs`` so that
+        fusion still receives the branch's (uncertain) distribution instead of losing its vote."""
+        conf = max(canonical_probs.values()) if canonical_probs else None
         return ModelPrediction(model_id=self.model_id, model_version=self.model_version, window_start_ts=start,
-                               window_end_ts=end, frame_ids=frame_ids, probabilities=probs,
+                               window_end_ts=end, frame_ids=frame_ids, probabilities=probs, canonical_probabilities=canonical_probs,
+                               confidence=None if conf is None else float(min(max(conf, 0.0), 1.0)),
                                status=PredictionStatus.UNKNOWN, processing_time_ms=ms, message=message)
 
     def error_prediction(self, ts: float, message: str) -> ModelPrediction:

@@ -29,14 +29,22 @@ yolo:
   weights_path: models/yolo/handwash_yolov5.pt
   every_n_frames: 3
   conf_threshold: 0.25
+temporal_v2:               # hand-relative temporal model (7 techniques + "none"); see docs/MODEL_INTEGRATION.md
+  enabled: true
+  artifact_dir: models/temporal_v2/current
+  unknown_threshold: 0.4
+  smooth_s: 0.0            # probability smoothing time constant (s); 0 = off. Off since 2026-11-12: saves ~0.35 s of lag, label changes/min 25 -> 60 on own round down3
+  hold_s: 0.35             # keep answering through tracking dropouts up to this long
 fusion:
   method: reliability_weighted
-  # Reliability weights set 2026-11-07 from independent held-out evidence (docs/TEST_RESULTS.md):
-  # skia_temporal 0.905 acc on held-out Kaggle sessions and best single branch on the sample video;
-  # handhygiene 0.30 acc on the sample video (trained upstream with the hand-assignment bug);
-  # skia_legacy is the leaky 1-step checkpoint; yolo has no weights. Re-derive from OUR recordings
-  # (docs/MODEL_INTEGRATION.md "Calibration of branch confidences and fusion weights").
-  weights: {handhygiene: 0.4, skia_temporal: 1.0, skia_legacy: 0.3, yolo: 0.5}
+  # Weights re-derived 2026-11-11 on held-out METC subjects through the full pipeline
+  # (scripts/benchmark_recognition.py --metc data/METC, docs/TEST_RESULTS.md section 7):
+  #   temporal_v2 alone      frame acc 0.75, credited/performed 0.70, 24 label changes/min
+  #   all branches fused     frame acc 0.38, credited/performed 0.14, 65 label changes/min
+  #   v1 branches only       frame acc 0.22, credited/performed 0.07, 248 label changes/min
+  # so the v1 branches (handhygiene 0.21, skia_temporal 0.25 frame accuracy) get weight 0: they still
+  # run and are logged, but do not vote. yolo has no weights. Re-check on OUR camera recordings.
+  weights: {temporal_v2: 1.0, handhygiene: 0.0, skia_temporal: 0.0, skia_legacy: 0.0, yolo: 0.5}
   unknown_threshold: 0.45
   contradiction_margin: 0.15
   alignment_tolerance_s: 0.25
@@ -44,7 +52,7 @@ fusion:
 temporal:
   enter_confidence: 0.6
   exit_confidence: 0.4
-  min_duration_s: 1.0
+  min_duration_s: 0.5      # 1.0 until 2026-11-12; 0.5 makes step timers start 0.5 s sooner (wrong credit +0.07 s per 10 s on METC)
   max_gap_s: 0.5
   min_tracking_quality: 0.3
   merge_gap_s: 0.75
@@ -53,6 +61,16 @@ regions:
   min_sufficient_duration_s: 3.0
   partial_visibility_weight: 0.5
   use_unresolved_side_evidence: false
+scoring:                   # wash score (technique-level, either hand). First guesses: tune on real washes.
+  steps: [palm_to_palm, back_of_hand, interlaced_fingers, backs_of_fingers, thumb_rubbing, fingertip_rubbing, wrist_rubbing]
+  step_min_s: 3.0          # validated seconds per step, summed across tries
+  steps_required: 5        # finished = this many steps done ...
+  total_min_s: 20.0        # ... AND this much total validated washing time
+  step_points: 10
+  time_points: 30
+  two_star_steps: 3
+  two_star_total_s: 10.0
+  backfill_s: 1.5          # on validation, credit up to 1.5 s of unrecognized time just before the step (model lag, median 1.4 s)
 projector:
   logical_width: 854
   logical_height: 480

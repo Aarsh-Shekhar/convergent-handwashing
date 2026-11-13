@@ -10,6 +10,7 @@ Per frame::
     fused      = fusion.combine(aligned branch predictions)
     events     = event_detector.update(fused, tracking_quality)
     progress   = region tracker (events -> region evidence -> progress state)
+    score      = wash scorer (validated time per step -> finished / stars / points)
     targets    = projection_mapper.map_hands(hands)
     sinks      -> results files, backend, device renderer
 
@@ -26,6 +27,8 @@ from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+
+import numpy as np
 
 from convergent.backend.client import BackendClient, BackendError
 from convergent.common.config import PipelineConfig, Settings, load_settings, resolve_path
@@ -47,6 +50,8 @@ from convergent.detection.event_detector import EventDetector
 from convergent.detection.fusion import FusionEngine, PredictionAligner
 from convergent.detection.handhygiene_adapter import HandHygieneAdapter
 from convergent.detection.labels import LabelRegistry
+from convergent.detection.pair_adapter import TemporalV2Adapter
+from convergent.detection.pair_features import HandSlotter
 from convergent.detection.registry import ModelRegistry
 from convergent.detection.skia_adapter import SkiaLegacyAdapter, SkiaTemporalAdapter
 from convergent.detection.yolo_adapter import YoloAdapter
@@ -55,6 +60,7 @@ from convergent.projection.diagnostics import render_command_for_targets
 from convergent.projection.mapping import ProjectionMapper
 from convergent.regions.evidence import EvidenceAccumulator
 from convergent.regions.progress import ProgressState, ProgressTracker
+from convergent.scoring.wash_score import WashScore, WashScorer
 from convergent.vision.hand_tracker import HandTracker
 from convergent.vision.sources import FrameSource, NetworkSource, create_source
 
@@ -71,6 +77,7 @@ class FrameResult:
     targets: list[ProjectionTarget]
     timing_ms: dict[str, float]
     progress: ProgressState | None = None
+    score: WashScore | None = None  # live wash score, present on every frame
 
 
 @dataclass
@@ -89,6 +96,7 @@ class RunSummary:
     results_dir: str | None
     fused_counts: dict[str, int] = field(default_factory=dict)
     dropped_frames: int = 0
+    score: dict[str, Any] | None = None  # final WashScore (frozen at finish, else from released events)
 
     def to_json(self) -> str:
         d = self.__dict__.copy()
@@ -112,11 +120,13 @@ class Pipeline:
         self.skia = SkiaTemporalAdapter(cfg.skia, self.registry)
         self.skia_legacy = SkiaLegacyAdapter(cfg.skia, self.registry)
         self.yolo = YoloAdapter(cfg.yolo, self.registry, self.model_registry)
+        self.temporal_v2 = TemporalV2Adapter(cfg.temporal_v2, self.registry)
         self.fusion = FusionEngine(cfg.fusion, self.registry)
         self.aligner = PredictionAligner(cfg.fusion.alignment_tolerance_s, cfg.fusion.max_prediction_age_s)
         self.events = EventDetector(cfg.temporal, self.session_id)
         self.evidence = EvidenceAccumulator(cfg.regions)
         self.progress = ProgressTracker(self.session_id, self.evidence)
+        self.scorer = WashScorer(cfg.scoring, self.session_id)
         profile = calibration
         if profile is None and cfg.projector.profile_path and resolve_path(cfg.projector.profile_path).exists():
             try:
@@ -137,14 +147,20 @@ class Pipeline:
         self._fused_counts: dict[str, int] = {}
         self._results_dir: Path | None = None
         self._results_fh = None
+        # hand points of every frame (slotted like temporal_v2 sees them), saved as landmarks.npz so a
+        # live run can be replayed through a newer model or labelled later
+        self._land_slotter = HandSlotter()
+        self._land_rows: list[tuple[float, np.ndarray, np.ndarray]] = []
+        self._land_aspect = 4.0 / 3.0
         self._last_region_push = -1e9
         self._render_seq = 0
+        self._stop_requested = False
         self.on_frame: Callable[[FrameResult], None] | None = None
 
     # ---- setup
     def load_models(self) -> dict[str, ArtifactStatus]:
         self.model_status = {}
-        for adapter in (self.handhygiene, self.skia, self.skia_legacy, self.yolo):
+        for adapter in (self.handhygiene, self.skia, self.skia_legacy, self.yolo, self.temporal_v2):
             st = adapter.load()
             self.model_status[adapter.model_id] = st
             log.info("model %-14s available=%-5s %s", adapter.model_id, st.available, st.message)
@@ -163,7 +179,10 @@ class Pipeline:
         hands = self.tracker.detect(frame)
         timing["tracker"] = hands.processing_time_ms
         preds: dict[str, ModelPrediction] = {}
-        for adapter in (self.handhygiene, self.skia, self.skia_legacy):
+        self.temporal_v2.aspect = frame.width / float(frame.height) if frame.height else self.temporal_v2.aspect
+        if self._results_fh is not None:
+            self._record_landmarks(hands, frame)
+        for adapter in (self.handhygiene, self.skia, self.skia_legacy, self.temporal_v2):
             if adapter.available:
                 p = adapter.predict(hands)  # type: ignore[attr-defined]
                 preds[adapter.model_id] = p
@@ -182,8 +201,13 @@ class Pipeline:
             if p.status != PredictionStatus.NO_INPUT:
                 self.aligner.offer(p)
         aligned = self.aligner.collect(frame.capture_ts)
-        quality = max([h.tracking_quality for h in hands.hands], default=0.0)
-        fused = self.fusion.combine(aligned, frame.capture_ts, tracking_ok=hands.num_hands > 0, frame_ids=[frame.frame_id])
+        seen = hands.hands + hands.unassigned  # a hand without a resolved left/right side is still a tracked hand
+        quality = max([h.tracking_quality for h in seen], default=0.0)
+        tracking_ok = len(seen) > 0
+        if not tracking_ok and self.temporal_v2.holding(frame.capture_ts):
+            # a dropout of a few frames while the hands keep moving: temporal_v2 still answers from its history
+            tracking_ok, quality = True, self.temporal_v2.last_quality
+        fused = self.fusion.combine(aligned, frame.capture_ts, tracking_ok=tracking_ok, frame_ids=[frame.frame_id])
         self._fused_counts[fused.status.value] = self._fused_counts.get(fused.status.value, 0) + 1
         if fused.canonical is not None:
             self.progress.observe_detection(fused.canonical.technique)
@@ -191,8 +215,10 @@ class Pipeline:
         new_events = self.events.update(fused, quality)
         for ev in new_events:
             self.progress.add_event(ev)
+        self.scorer.add_events(new_events)
         self._all_events.extend(new_events)
-        targets = self.mapper.map_hands(hands, (frame.width, frame.height)) if self.mapper.ready else []
+        score = self.scorer.update(frame.capture_ts, self.events.state.active, self.events.pending)
+        targets =self.mapper.map_hands(hands, (frame.width, frame.height)) if self.mapper.ready else []
         frame.timestamps.processed_ts = monotonic()
         timing["total"] = (time.perf_counter() - t0) * 1000.0
         self._latency.append(timing["total"])
@@ -200,11 +226,32 @@ class Pipeline:
         if new_events or frame.frame_id % 30 == 0:
             progress = self.progress.snapshot(frame.capture_ts, self._candidate_dict())
         result = FrameResult(frame=frame.without_image(), hands=hands, branch_predictions=preds, fused=fused, events=new_events,
-                             targets=targets, timing_ms=timing, progress=progress)
+                             targets=targets, timing_ms=timing, progress=progress, score=score)
         self._sink(result)
         if self.on_frame:
             self.on_frame(result)
         return result
+
+    def _record_landmarks(self, hands: TrackedHands, frame: FramePacket) -> None:
+        if self._land_rows and hands.capture_ts <= self._land_rows[-1][0]:
+            return
+        found = sorted(hands.hands + hands.unassigned, key=lambda h: -h.tracking_quality)[:2]
+        raw, pres = self._land_slotter.assign([h.landmark_array() for h in found], hands.capture_ts)
+        self._land_rows.append((hands.capture_ts, raw.astype(np.float32), pres.astype(np.float32)))
+        if frame.height:
+            self._land_aspect = frame.width / float(frame.height)
+
+    def _save_landmarks(self) -> None:
+        if self._results_dir is None or len(self._land_rows) < 2:
+            return
+        from convergent.detection.pair_training import IGNORE_LABEL, RawRecording
+
+        n = len(self._land_rows)
+        rec = RawRecording(f"live_{self.session_id}", "live", "live", self.session_id,
+                           np.stack([r[1] for r in self._land_rows]), np.stack([r[2] for r in self._land_rows]),
+                           np.array([r[0] for r in self._land_rows], np.float64), np.full(n, IGNORE_LABEL),
+                           self._land_aspect, self.source.source_id, float(self.cfg.source.target_fps), "live")
+        rec.save(self._results_dir / "landmarks.npz")
 
     def _candidate_dict(self) -> dict[str, Any] | None:
         c = self.events.state.active
@@ -217,6 +264,7 @@ class Pipeline:
                    "fused": {"status": r.fused.status.value, "label": r.fused.native_label, "confidence": r.fused.confidence,
                              "participating": r.fused.extras.get("participating", [])},
                    "branches": {k: {"status": p.status.value, "label": p.native_label, "conf": p.confidence} for k, p in r.branch_predictions.items()},
+                   "v2_top": _top_probs(r.branch_predictions.get("temporal_v2")),
                    "events": [e.event_id for e in r.events], "targets": sum(1 for t in r.targets if t.valid), "timing_ms": r.timing_ms}
             self._results_fh.write(json.dumps(rec) + "\n")
         if self.backend is not None:
@@ -246,7 +294,12 @@ class Pipeline:
             log.warning("backend write failed (continuing): %s", exc)
 
     # ---- run
+    def stop(self) -> None:
+        """Ask a running :meth:`run` to finish after the current frame (normal end: summary and score are saved)."""
+        self._stop_requested = True
+
     def run(self, max_frames: int | None = None) -> RunSummary:
+        self._stop_requested = False
         if not self.model_status:
             self.load_models()
         mon = ResourceMonitor()
@@ -280,16 +333,25 @@ class Pipeline:
                         window_frames, window_t0, next_status = 0, now, now + status_every
                         label = res.fused.native_label or res.fused.status.value
                         conf = f" ({res.fused.confidence:.2f})" if res.fused.confidence is not None else ""
-                        log.info("live: frames=%d fps=%.1f hands=%d fused=%s%s events=%d tracker=%.0fms",
-                                 frames, fps, res.hands.num_hands, label, conf, len(self._all_events), res.timing_ms.get("tracker", 0.0))
+                        sc = res.score
+                        score_txt = "" if sc is None else (f" score: {sc.stars}* {sc.points}pts steps={sc.steps_done}/{sc.steps_required}"
+                                                           f" total={sc.total_s:.1f}/{sc.total_min_s:.0f}s{' FINISHED' if sc.finished else ''}")
+                        log.info("live: frames=%d fps=%.1f hands=%d fused=%s%s events=%d tracker=%.0fms%s",
+                                 frames, fps, res.hands.num_hands, label, conf, len(self._all_events), res.timing_ms.get("tracker", 0.0), score_txt)
                     if max_frames is not None and frames >= max_frames:
+                        break
+                    if self._stop_requested:
                         break
                     if isinstance(self.source, NetworkSource) and self.source.queue.closed:
                         break
+        except KeyboardInterrupt:
+            # Ctrl+C ends the run like a normal stop so the summary, score and session end are still saved.
+            log.info("stopped by user after %d frames", frames)
         finally:
             tail = self.events.flush(last_ts)
             for ev in tail:
                 self.progress.add_event(ev)
+            self.scorer.add_events(tail)
             self._all_events.extend(tail)
             if self.backend is not None:
                 if tail:
@@ -300,18 +362,20 @@ class Pipeline:
                 self._yolo_pool.shutdown(wait=True)
             mon.sample()
         progress = self.progress.snapshot(last_ts, None)
+        score = self.scorer.final(last_ts).model_dump(mode="json")
         summary = RunSummary(session_id=self.session_id, source_id=self.source.source_id, frames=frames, duration_s=monotonic() - started,
                              events=list(self._all_events), model_status={k: v.as_dict() for k, v in self.model_status.items()},
                              source_stats=self.source.stats.as_dict(), latency=LatencyStats.from_samples(self._latency).__dict__,
                              resources=mon.summary(), backend={} if self.backend is None else self.backend.stats.__dict__ | {"session": self.session_id},
                              progress=progress.model_dump(mode="json"), results_dir=None if self._results_dir is None else str(self._results_dir),
-                             fused_counts=dict(self._fused_counts), dropped_frames=self.source.stats.frames_dropped_queue)
+                             fused_counts=dict(self._fused_counts), dropped_frames=self.source.stats.frames_dropped_queue, score=score)
         if self.backend is not None:
             self._safe(lambda: self.backend.end_session(self.session_id, {"frames": frames, "events": len(self._all_events), "latency": summary.latency,  # type: ignore[union-attr]
                                                                            "source": summary.source_stats, "fused_counts": summary.fused_counts,
-                                                                           "ended_at": utc_now_iso()}))
+                                                                           "wash_score": score, "ended_at": utc_now_iso()}))
         if self._results_fh is not None:
             self._results_fh.close()
+            self._save_landmarks()
             (self._results_dir / "summary.json").write_text(summary.to_json(), encoding="utf-8")  # type: ignore[operator]
             (self._results_dir / "events.json").write_text(json.dumps([e.model_dump(mode="json") for e in self._all_events], indent=2), encoding="utf-8")  # type: ignore[operator]
         return summary
@@ -320,3 +384,11 @@ class Pipeline:
         self.tracker.close()
         if self.backend is not None:
             self.backend.close()
+
+
+def _top_probs(p: ModelPrediction | None, k: int = 3) -> list[list[Any]] | None:
+    """The model's top ``k`` native labels with probabilities (``none`` included), for diagnosing live runs."""
+    if p is None or not p.probabilities:
+        return None
+    top = sorted(p.probabilities.items(), key=lambda kv: -kv[1])[:k]
+    return [[n, round(float(v), 3)] for n, v in top]

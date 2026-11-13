@@ -28,6 +28,11 @@ models/skia_temporal/*
 # 2.2 MB trained temporal LSTM (Kaggle hand-wash data; see docs/TEST_RESULTS.md section 3)
 !models/skia_temporal/current/
 !models/skia_temporal/current/**
+!models/temporal_v2/
+models/temporal_v2/*
+# trained hand-relative temporal model (METC + Kaggle; see docs/TEST_RESULTS.md section 7)
+!models/temporal_v2/current/
+!models/temporal_v2/current/**
 # datasets and extracted landmark sequences are not committed
 data/HandWashDataset/
 data/landmark_sequences/
@@ -39,3 +44,8 @@ data/HandWashDataset/
 data/handhygiene_videos/
 # private recordings never go to git
 recordings/
+
+# own recordings and downloaded datasets stay local
+data/own/
+data/METC/
+data/landmarks_v2/

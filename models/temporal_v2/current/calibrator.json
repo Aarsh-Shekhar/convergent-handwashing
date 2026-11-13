@@ -1,0 +1,10 @@
+{
+  "method": "temperature",
+  "temperature": 1.0,
+  "bin_edges": [],
+  "bin_accuracy": [],
+  "fitted": true,
+  "n_fit_samples": 10745,
+  "ece_before": 0.016608672721156275,
+  "ece_after": 0.01660867288288927
+}

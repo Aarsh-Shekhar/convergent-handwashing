@@ -193,3 +193,96 @@ Live pipeline on the M3: ~23 FPS on the sample video, tracker 34–52 ms/frame.
 webcam path; Picamera2 capture, B0176 focus control, `/dev/fb0`
 rendering, RIF6 HDMI mode, Wi-Fi throughput on the Pi 3 A+; accuracy of any model on our
 camera; fitted fusion weights / calibrators (current weights are chosen from evidence, not fitted).
+
+## 7. Hand-relative temporal model `temporal_v2` (2026-11-11, MacBook Apple M5 Pro)
+
+Why and how: `docs/MODEL_INTEGRATION.md` "The hand-relative temporal model". Installed artifact:
+`models/temporal_v2/current` (TCN, 48-frame window, 5 residual blocks, 128 channels, 8 classes).
+
+**Training data** (landmarks from the live tracker settings, `scripts/extract_landmarks_v2.py`):
+METC 212 videos / 207,969 frames (frame labels, 72 students) + Kaggle 300 clips / 58,168 frames.
+68,773 windows; split by person (METC) and by wash (Kaggle), fixed per dataset.
+
+**Window-level results on held-out people/washes** (`meta.json`; both hand-slot orders averaged):
+
+| Split | Accuracy | Macro-F1 | Windows |
+|---|---|---|---|
+| validation (model selection) | 0.866 | 0.882 | 10,745 |
+| test, all | 0.842 | 0.856 | 12,142 |
+| test, METC subjects | 0.790 | 0.801 | 9,016 |
+| test, Kaggle washes | 0.990 | 0.988 | 3,126 |
+
+Per-class recall on the METC test subjects: palm 0.86, back of hand 0.89, interlaced 0.77,
+backs of fingers 0.91, thumb 0.67, fingertips 0.77, none 0.73. Kaggle test: every class
+≥ 0.94 (wrist 0.99). The Kaggle number is within-dataset (same five sinks); the METC number is
+the more honest one. Published landmark results on METC are ~0.70 macro-F1 (Ivanovs & Ivanova
+2026, different split), so 0.80 is plausible, not a leak. Calibration temperature 1.05 (ECE 0.035 → 0.031).
+
+Variants tried on METC only (same split): TCN w32 0.787 acc, GRU w32 0.784, **TCN w48 0.805**.
+
+**Through the full pipeline** (`scripts/benchmark_recognition.py --metc data/METC`: tracker →
+branches → fusion → temporal validator, 35 videos of the held-out METC subjects, 36 min,
+frame labels; `runs/benchmark_metc_*.json`):
+
+| Measure | v1 branches (before) | all branches fused | **temporal_v2 only (installed config)** |
+|---|---|---|---|
+| Frame accuracy (8 classes) | 0.224 | 0.378 | **0.754** |
+| Frame accuracy on washing frames | 0.079 | 0.167 | **0.729** |
+| Credited / performed seconds, mean over steps | 0.065 | 0.141 | **0.705** |
+| – palm to palm | 0.000 | – | **0.803** |
+| – back of hand / interlaced / backs of fingers | 0.230 / 0.037 / 0.068 | – | **0.841 / 0.668 / 0.675** |
+| – thumb / fingertips | 0.054 / 0.003 | – | **0.532 / 0.708** |
+| Palm recall with 1 / 2 hands tracked | 0.008 / 0.004 | – | **0.871 / 0.808** |
+| Seconds credited to a wrong step, per 10 s of a step | 0.7–3.2 | – | **0.15–0.73** |
+| Seconds credited per 10 s of "other movement" | 1.42 | 0.21 | 1.26 |
+| Fused-label changes per minute (truth: 7.8) | 248 | 65 | **24** |
+
+Hence `fusion.weights`: temporal_v2 1.0, v1 branches 0 (they still run and are logged).
+
+**Sample clip** (`data/samples/handwashing_missing_step.mp4`, the "thumb step missing" clip):
+before – 10 fragmented events, no palm-to-palm, wash score 2★/70 "not finished"; after – six
+events in order (palm 17.1 s, back of hand 17.5 s, interlaced 20.9 s, backs of fingers 17.5 s,
+fingertips 8.3 s, wrist 5.7 s), thumb correctly absent, score 3★/80 finished. This clip comes
+from the same footage family as the Kaggle set, so it is a sanity check, not an independent test.
+
+**Honest limits of these numbers**
+
+* No recording from OUR camera was used for training or testing (none exists yet). Both public
+  sets are top-down sink views of adults. `docs/RECORDING_GUIDE.md` + `--rounds` in the benchmark
+  give the real number in ~15 minutes once clips are recorded.
+* Thumb rubbing is the weakest step (0.53 credited): the tracker loses both hands for long
+  stretches there (any hand visible in ~79 % of thumb frames).
+* "Other movement" in METC still earns 1.3 s of step credit per 10 s. That class is whatever
+  the students did between steps (often washing-like); idle hands on our camera are untested.
+* Wrist rubbing is learned from Kaggle only (25 washes).
+* Targets set in the plan (credited ≥ 0.80 per step, ≤ 10 label changes/min) are met for palm
+  and back of hand only.
+
+## 8. Own webcam rounds (2026-11-12)
+
+Data: 3 rounds by Andrew (`data/own/down1..3`), laptop webcam, front view at chest height, 15 s per
+class (7 steps + not washing). down1 was recorded in a different room and shirt from down2/down3.
+The tracker sees both hands in only 8 to 20% of palm-to-palm frames from this view.
+
+Full pipeline on held-out round down3 (`scripts/benchmark_recognition.py --own data/own --rounds down3`):
+
+| Measure | Public-only model | Trained with down1 + down2 (full train, then fine-tune) |
+| --- | --- | --- |
+| Frame accuracy | 0.24 | 0.59 |
+| Credited / performed (mean over steps) | 0.10 | 0.48 |
+| Palm to palm credited | 0.21 | 0.65 |
+| Back of hand | 0.00 | 0.33 |
+| Interlaced fingers | 0.16 | 0.68 |
+| Backs of fingers | 0.00 | 0.53 |
+| Thumb | 0.11 | 0.18 |
+| Fingertips | 0.23 | 1.00 |
+| Wrist | 0.00 | 0.00 (read as backs of fingers) |
+
+Window accuracy, model fine-tuned from the public-only model (own weight 12): 0.52 with down3 held out,
+0.69 with down1 held out. The same model scores 1.00 on the rounds it trained on, so it memorizes
+the few own examples. The baseline on all 3 rounds was 0.27 frame accuracy, 0.14 credited.
+
+Installed model: trained on all 3 rounds (no own test round left), so its own-camera accuracy is
+expected to be around the held-out numbers above, not higher. Held-out METC window accuracy stays
+0.80, Kaggle 0.98. The sample clip still gives six in-order events with thumb absent.
+

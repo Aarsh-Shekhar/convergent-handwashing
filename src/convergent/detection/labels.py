@@ -22,12 +22,15 @@ INTERLACED_FINGERS = "interlaced_fingers"
 BACKS_OF_FINGERS = "backs_of_fingers"
 THUMB_RUBBING = "thumb_rubbing"
 FINGERTIP_RUBBING = "fingertip_rubbing"
+WRIST_RUBBING = "wrist_rubbing"  # extension (WHO step 7): scored, but no region evidence
 NONE = "none"
 UNKNOWN = "unknown"
 TRANSITION = "transition"
 CORE_TECHNIQUES: tuple[str, ...] = (
     PALM_TO_PALM, BACK_OF_HAND, INTERLACED_FINGERS, BACKS_OF_FINGERS, THUMB_RUBBING, FINGERTIP_RUBBING,
 )
+# The seven techniques the wash score times, in suggested (WHO) order.
+SCORED_TECHNIQUES: tuple[str, ...] = CORE_TECHNIQUES + (WRIST_RUBBING,)
 
 _SIDE = {"left": HandSide.LEFT, "right": HandSide.RIGHT, "both": HandSide.BOTH,
          "unresolved": HandSide.UNRESOLVED, "unknown": HandSide.UNKNOWN}
