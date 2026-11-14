@@ -55,6 +55,30 @@ not the hardware:
 4. **Warp to landmarks, not to a fixed sprite.** Germ positions come from the region polygons of
    the current frame, so they follow finger spread and rotation.
 
+## Frame rate matters more than anything here (2026-11-14 finding)
+
+The first live runs on a MacBook M3 processed only 7–9 frames/s (summary.json: `frames /
+duration_s`), with the MediaPipe `tasks` backend at 35–50 ms/frame and `cap.read()` blocking in
+series with the model. The technique model was trained on 15 FPS windows, so at 8 FPS it saw
+every motion twice as fast and phases came out short or wrong. Three fixes:
+
+1. `temporal_v2` now resamples its window onto the 15 FPS grid (linear interpolation of
+   landmarks between frames); on the sample clip decimated to 8 and 6 FPS the credited seconds
+   are now within a few seconds of the 15 FPS answer, with the thumb still correctly missing.
+   At 15 FPS the window is bit-identical (regression fingerprint and acceptance unchanged).
+2. The webcam is read in a background thread, so the pipeline always takes the newest frame
+   instead of waiting ~33 ms for the next one.
+3. `tracker.backend` defaults to `solutions` (about 2× faster than `tasks` on macOS).
+
+The live window prints `pipeline N fps` and warns below 12. If it is still low: close other
+apps, lower `source.width/height` to 640×480, or turn the projection preview off (P) while
+testing recognition; the Pi path never pays the preview cost.
+
+**Why it looked worse than on Andrew's laptop:** the installed model was fine-tuned on
+Andrew's own webcam rounds (weight 12). On his hands and camera it is close to 100 %; on anyone
+else it is the held-out case (48–59 % credited). Recording your own rounds and fine-tuning is
+the fix (`docs/RECORDING_GUIDE.md`, `scripts/train_temporal_v2.py --init-from ... --own-weight 12`).
+
 ## Known limits
 
 * The dinos sit on MediaPipe's hand outline; when the tracker loses a hand the germs vanish

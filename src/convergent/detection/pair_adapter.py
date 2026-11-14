@@ -34,6 +34,7 @@ from convergent.detection.confidence_calibration import Calibrator
 from convergent.detection.labels import NONE, LabelRegistry, ModelLabelMap, default_registry
 from convergent.detection.lstm_model import PAIR_PREPROCESSING_VERSION, TemporalArtifact
 from convergent.detection.pair_features import (
+    REFERENCE_FPS,
     HandSlotter,
     featurize,
     smooth_probabilities,
@@ -60,7 +61,7 @@ class TemporalV2Adapter(Classifier):
         self._hold_s = 0.0
         self._last_seen_ts = -1e9
         self._last_quality = 0.0
-        self._buf: deque[tuple[float, int, np.ndarray, np.ndarray, float]] = deque(maxlen=self._window)
+        self._buf: deque[tuple[float, int, np.ndarray, np.ndarray, float]] = deque(maxlen=4 * self._window)
         self.aspect = 4.0 / 3.0  # image width / height; the pipeline sets it from the frame
         self._smooth: np.ndarray | None = None
         self._smooth_ts = -1e9
@@ -95,7 +96,7 @@ class TemporalV2Adapter(Classifier):
         self._min_present = max(2, art.meta.min_present_frames or 8)
         self._reset_gap_s = art.meta.max_gap_s
         self._hold_s = min(self.cfg.hold_s, art.meta.hold_frames / 15.0 + 0.02)
-        self._buf = deque(maxlen=self._window)
+        self._buf = deque(maxlen=4 * self._window)  # time-based: resampled to the 15 FPS grid in _window_now
         self._status = ArtifactStatus(self.model_id, True, str(d), self.model_version, sha256_of(d / "model.pt"), "loaded",
                                       art.meta.preprocessing_version,
                                       {"window_frames": art.meta.window_frames, "classes": list(art.meta.classes), "architecture": art.meta.architecture,
@@ -160,18 +161,45 @@ class TemporalV2Adapter(Classifier):
         return self.predict_window(self._window_now())
 
     def _window_now(self) -> SequenceWindow:
-        """The last ``window_frames`` frames, left-padded with empty frames when the history is shorter."""
-        n, t = len(self._buf), self._window
+        """The last ``window_frames`` slots on a 1/15 s grid ending at the newest frame, left-padded
+        with empty slots when the history is shorter.
+
+        The model was trained on 15 FPS windows. A laptop that only manages 8 FPS would otherwise
+        hand it 48 frames spanning 6 s with every motion looking twice as fast. So the buffer is
+        resampled onto the reference grid: landmarks are linearly interpolated between the two
+        nearest frames when the same slot is present in both, otherwise the nearest frame is held.
+        At exactly 15 FPS the grid coincides with the frames and nothing changes.
+        """
+        t = self._window
+        step = 1.0 / REFERENCE_FPS
+        end = self._buf[-1][0]
+        grid = end - np.arange(t - 1, -1, -1) * step
+        stamps_in = np.array([b[0] for b in self._buf])
         feats = np.zeros((t, 126), np.float32)
         pres = np.zeros((t, 2), np.float32)
-        stamps = self._buf[-1][0] - np.arange(t - 1, -1, -1) / 15.0
         qual = np.zeros(t, np.float32)
-        for i, (ts, _fid, raw, p, q) in enumerate(self._buf):
-            k = t - n + i
-            feats[k], pres[k], stamps[k], qual[k] = raw.reshape(-1), p, ts, q
-        if n < t:  # keep the padded timestamps strictly before the first real frame
-            stamps[:t - n] = self._buf[0][0] - np.arange(t - n, 0, -1) / 15.0
-        return SequenceWindow(features=feats, presence=pres, timestamps=stamps, frame_ids=[b[1] for b in self._buf], tracking_quality=qual)
+        frame_ids: list[int] = []
+        first = stamps_in[0]
+        for k, g in enumerate(grid):
+            if g < first - 0.5 * step:
+                continue  # padding slot (empty frame)
+            j = int(np.searchsorted(stamps_in, g))  # first frame at or after g
+            lo, hi = max(j - 1, 0), min(j, len(stamps_in) - 1)
+            ts_lo, _fid_lo, raw_lo, p_lo, q_lo = self._buf[lo]
+            ts_hi, fid_hi, raw_hi, p_hi, q_hi = self._buf[hi]
+            if hi == lo or ts_hi <= ts_lo:
+                raw, p, q, fid = raw_hi, p_hi, q_hi, fid_hi
+            else:
+                a = min(1.0, max(0.0, float((g - ts_lo) / (ts_hi - ts_lo))))
+                near_raw, near_p, fid = (raw_hi, p_hi, fid_hi) if a >= 0.5 else (raw_lo, p_lo, self._buf[lo][1])
+                both = (p_lo > 0.5) & (p_hi > 0.5)  # per slot: interpolate only when the hand is in both frames
+                raw = np.where(both[:, None, None], (1 - a) * raw_lo + a * raw_hi, near_raw)
+                p = np.where(both, 1.0, near_p).astype(np.float32)
+                q = (1 - a) * q_lo + a * q_hi
+            feats[k], pres[k], qual[k] = np.asarray(raw, np.float32).reshape(-1), p, q
+            if not frame_ids or frame_ids[-1] != fid:
+                frame_ids.append(fid)
+        return SequenceWindow(features=feats, presence=pres, timestamps=grid, frame_ids=frame_ids, tracking_quality=qual)
 
     def window_probabilities(self, window: SequenceWindow) -> np.ndarray:
         """Calibrated class probabilities for one raw window (both slot orders averaged, no smoothing)."""

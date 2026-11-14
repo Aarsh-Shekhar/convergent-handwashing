@@ -48,13 +48,23 @@ def draw_dino(layer: Image.Image, x: float, y: float, size: float, angle_deg: fl
     d.ellipse([ex - r2, ey - r2, ex + r2, ey + r2], fill=(20, 20, 20, a))
 
 
+_BLOB_CACHE: dict[tuple[int, tuple[int, int, int], int], Image.Image] = {}
+
+
 def draw_blob(layer: Image.Image, x: float, y: float, size: float, color: tuple[int, int, int] = (255, 220, 60), alpha: float = 0.6) -> None:
-    """Soft glow: a blurred disc. Tolerates tracking misalignment (no crisp edge on the hand)."""
+    """Soft glow: a blurred disc (cached per size/colour). Tolerates tracking misalignment."""
     r = int(size)
     pad = r
-    tile = Image.new("RGBA", (2 * (r + pad), 2 * (r + pad)), (0, 0, 0, 0))
-    ImageDraw.Draw(tile).ellipse([pad, pad, pad + 2 * r, pad + 2 * r], fill=(*color, int(255 * max(0.0, min(1.0, alpha)))))
-    tile = tile.filter(ImageFilter.GaussianBlur(max(1, r // 2)))
+    a = int(255 * max(0.0, min(1.0, alpha)))
+    key = (r, tuple(color), a)
+    tile = _BLOB_CACHE.get(key)
+    if tile is None:
+        tile = Image.new("RGBA", (2 * (r + pad), 2 * (r + pad)), (0, 0, 0, 0))
+        ImageDraw.Draw(tile).ellipse([pad, pad, pad + 2 * r, pad + 2 * r], fill=(*color, a))
+        tile = tile.filter(ImageFilter.GaussianBlur(max(1, r // 2)))
+        if len(_BLOB_CACHE) > 64:
+            _BLOB_CACHE.clear()
+        _BLOB_CACHE[key] = tile
     layer.alpha_composite(tile, (int(x) - r - pad, int(y) - r - pad))
 
 

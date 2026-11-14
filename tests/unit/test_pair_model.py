@@ -272,3 +272,32 @@ def test_unsure_branch_still_votes_in_fusion():
     fused = eng.combine({"skia_temporal": sure, "handhygiene": unsure}, 1.0)
     assert set(fused.extras["participating"]) == {"skia_temporal", "handhygiene"}
     assert fused.extras["technique_distribution"]["palm_to_palm"] == pytest.approx(0.42)
+
+
+def test_window_is_resampled_to_the_15_fps_grid():
+    """A 7.5 FPS stream must produce (nearly) the same window as the 15 FPS stream it was decimated from."""
+    import numpy as np
+
+    from convergent.common.config import TemporalV2Config
+
+    rng = np.random.default_rng(0)
+    base = rng.uniform(0.2, 0.8, size=(2, 21, 3)).astype(np.float32)
+    frames = []  # 15 FPS: slot 0 drifts right linearly, slot 1 present throughout
+    for i in range(48):
+        raw = base.copy()
+        raw[0, :, 0] += 0.004 * i
+        frames.append((i / 15.0, i, raw, np.array([1.0, 1.0], np.float32), 0.9))
+    full, half = TemporalV2Adapter(TemporalV2Config()), TemporalV2Adapter(TemporalV2Config())
+    full._window = half._window = 48
+    for f in frames:
+        full._buf.append(f)
+    for f in frames[1::2]:  # keep odd frames only: 7.5 FPS ending at the same last frame
+        half._buf.append(f)
+    wf, wh = full._window_now(), half._window_now()
+    assert np.allclose(wf.timestamps, wh.timestamps)
+    assert wf.features.shape == wh.features.shape == (48, 126)
+    # grid slots covered by the decimated history: interpolation reproduces the linear drift
+    covered = wh.presence.max(axis=1) > 0.5
+    assert covered.sum() >= 46 and np.abs(wf.features[covered] - wh.features[covered]).max() < 1e-3
+    # at exactly 15 FPS the grid coincides with the frames: identical window
+    assert np.allclose(wf.features, np.stack([f[2].reshape(-1) for f in frames]))

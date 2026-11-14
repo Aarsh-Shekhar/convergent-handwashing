@@ -6,7 +6,7 @@ source:
   target_fps: 15.0         # engineering starting point, not a guaranteed hardware rate
   rotation_deg: 0
 tracker:
-  backend: auto            # tasks (needs models/mediapipe/hand_landmarker.task) | solutions (bundled) | null
+  backend: solutions       # solutions (bundled, ~20 ms/frame on an M-series Mac) | tasks (needs models/mediapipe/hand_landmarker.task; ~2x slower on macOS, 2026-11-14) | auto | null
   num_hands: 2
   min_detection_confidence: 0.5
   min_tracking_confidence: 0.5

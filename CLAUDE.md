@@ -10,7 +10,7 @@ This repo is the technical foundation. The child-facing game, the parent app and
 - Fast tests: `.venv/bin/python -m pytest tests/unit -m "not mediapipe"`. Full suite: `.venv/bin/python -m pytest -q` (158 tests, all passing as of 2026-11-11).
 - Lint: `.venv/bin/ruff check src tests`.
 - Sample clip: `data/samples/handwashing_missing_step.mp4`. It is git-ignored and was downloaded from `dpt-xyz/hand-wash-compliance-yolo` (`TestingData/missingStep_test1.mp4`). Don't swap in a different clip, because the regression fingerprint depends on this one.
-- Cameras: index 0 is usually the iPhone (Continuity Camera). The MacBook webcam is usually `--device 1`. Index order can change between machines and sessions.
+- Cameras: index 0 is usually the iPhone (Continuity Camera). The MacBook webcam is usually `--device 1`. Index order can change between machines and sessions. The webcam is grabbed in a background thread (2026-11-14); `tracker.backend` defaults to `solutions` because `tasks` is about 2x slower on macOS. The live window shows the pipeline FPS; below 12 FPS recognition degrades.
 - The webcam only works from Andrew's own Terminal app. The Claude desktop terminal panel has no camera permission ("not authorized to capture video"). Give Andrew the command to run himself.
 
 ### Run commands
@@ -53,7 +53,7 @@ Why it replaced the v1 LSTM: on Andrew's webcam the LSTM only said "palm to palm
 - **Classes:** the 7 techniques plus `none` (not washing). No left/right. The side comes from `detection/side_resolver.py` (2026-11-14): an MLP on label-free hand geometry, 96.5% held-out frame accuracy on Kaggle, sets `GestureEvent.side` for sided events.
 - **Features** (`detection/pair_features.py`, 183 values per frame): each hand described in its own frame (position, size and in-plane rotation removed), its motion, and the other hand seen from it.
 - **Hand slots:** by position continuity (`HandSlotter`), not by MediaPipe's left/right guess. Hands without a resolved side are used too.
-- **Window:** the last 48 frames (3.2 s). Frames without hands stay in as empty frames, so a dropout costs no warm-up. It answers after 8 frames with a hand and keeps answering for 0.35 s after the hands vanish.
+- **Window:** the last 48 frames (3.2 s) on a 15 FPS grid. Since 2026-11-14 the buffer is resampled onto that grid (linear interpolation), so a laptop running at 6 to 9 FPS still feeds the model what it was trained on; at 15 FPS nothing changes. Frames without hands stay in as empty frames, so a dropout costs no warm-up. It answers after 8 frames with a hand and keeps answering for 0.35 s after the hands vanish.
 - **Model:** temporal convolution network, `models/temporal_v2/current` (2.2 MB, committed). Output is calibrated. Smoothing is off since 2026-11-12 (`smooth_s: 0`) to cut lag.
 - **Training data:** METC (Zenodo 5808789, 212 washes, frame labels), Kaggle `realtimear/hand-wash-dataset` (300 clips) and Andrew's own rounds `data/own/down1..3` (recorded 2026-11-11, laptop webcam, front view at chest height, 15 s per class). All in `data/`, git-ignored.
 - **Installed model (2026-11-12):** full training on all data (`runs/v2/own_all`), then a 10-epoch fine-tune with own weight 12 (`runs/v2/ft_all`, `--init-from`). The previous public-only model is backed up in `runs/v2/installed_backup_public_only`.

@@ -266,20 +266,50 @@ class WebcamSource(FrameSource):
         self._cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.config.width)
         self._cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.config.height)
         self._cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+        # Grab in a background thread so cap.read() (which blocks for the next camera frame, ~33 ms at
+        # 30 FPS) never sits in series with the model. The pipeline always gets the newest frame with
+        # its real capture time; frames it was too slow for are counted in frames_dropped_queue.
+        import threading
+
+        self._latest: tuple[np.ndarray, float] | None = None
+        self._seen_ts = -1.0
+        self._cond = threading.Condition()
+        self._stop = False
+        self._thread = threading.Thread(target=self._grab_loop, name="webcam-grab", daemon=True)
+        self._thread.start()
+
+    def _grab_loop(self) -> None:
+        while not self._stop and self._cap is not None:
+            ok, frame = self._cap.read()
+            if not ok or frame is None:
+                self.stats.decode_failures += 1
+                time.sleep(0.005)
+                continue
+            with self._cond:
+                if self._latest is not None and self._latest[1] > self._seen_ts:
+                    self.stats.frames_dropped_queue += 1  # the previous frame was never consumed
+                self._latest = (frame, monotonic())
+                self._cond.notify_all()
 
     def close(self) -> None:
+        self._stop = True
+        if getattr(self, "_thread", None) is not None and self._thread.is_alive():
+            self._thread.join(timeout=1.0)
         if self._cap is not None:
             self._cap.release()
             self._cap = None
 
     def _read_raw(self) -> tuple[np.ndarray, float, int, str] | None:
         assert self._cap is not None
-        ok, frame = self._cap.read()
-        if not ok or frame is None:
-            self.stats.decode_failures += 1
-            return None
+        with self._cond:
+            if not self._cond.wait_for(lambda: self._stop or (self._latest is not None and self._latest[1] > self._seen_ts), timeout=2.0):
+                return None
+            if self._latest is None:
+                return None
+            frame, ts = self._latest
+            self._seen_ts = ts
         self._index += 1
-        return frame, monotonic(), self._index, "laptop_monotonic"
+        return frame, ts, self._index, "laptop_monotonic"
 
 
 # --------------------------------------------------------------------------- synthetic

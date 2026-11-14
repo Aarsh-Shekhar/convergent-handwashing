@@ -114,11 +114,16 @@ def _attach_show_window(pipe, projection: bool = False) -> None:  # type: ignore
     if projection:
         pipe.scene.enabled = True
     orig = pipe.process_frame
+    stamps: list[float] = []
 
     def _proc(frame):  # type: ignore[no-untyped-def]
         r = orig(frame)
+        stamps.append(frame.capture_ts)
+        del stamps[:-30]
+        fps = (len(stamps) - 1) / max(stamps[-1] - stamps[0], 1e-6) if len(stamps) > 5 else 0.0
+        warn = "  (LOW: recognition degrades below ~12 fps, see docs/PROJECTION_GRAPHICS.md)" if 0 < fps < 12 else ""
         img = render_overlay(frame, r.hands, [f"fused={r.fused.native_label or r.fused.status.value} conf={r.fused.confidence}",
-                                              "Esc = stop and print score   P = projection on/off"])
+                                              f"pipeline {fps:.1f} fps{warn}", "Esc = stop and print score   P = projection on/off"])
         img = preview.compose(img, r.render)
         if r.score is not None:
             draw_score_panel(img, r.score, soap=r.soap)
