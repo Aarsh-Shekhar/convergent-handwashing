@@ -51,4 +51,4 @@ Legend: ✅ implemented & tested here · 🟡 implemented, awaiting model artifa
 - [x] YOLO adapter integrated · [x] available artifacts genuinely loaded (HandHygiene RF/LR, S-Kia legacy) · [x] missing artifacts reported, no fake detections
 - [x] documented canonical mapping for all three · [x] time-aligned fusion · [x] temporal validation events · [x] region evidence
 - [x] projection calibration on synthetic fixtures · [x] Pi agent + diagnostic renderer · [x] backend with migrations · [x] pipeline persists through the backend
-- [x] integration/regression tests executed (172 passed, incl. `tests/acceptance`) · [x] runnable commands + docs · [x] hardware-dependent items distinguished · [x] no gamification built
+- [x] integration/regression tests executed (173 passed, incl. `tests/acceptance`) · [x] runnable commands + docs · [x] hardware-dependent items distinguished · [x] no gamification built

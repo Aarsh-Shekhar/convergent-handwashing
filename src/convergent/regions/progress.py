@@ -94,6 +94,8 @@ class ProgressTracker:
                 tp.side_unresolved_duration_s += ev.validated_duration_s
         self.acc.add_event(ev)
 
+    soap_state: str = "not_detected"  # set by the pipeline from SoapDetector: not_detected | seen | detected
+
     def snapshot(self, timestamp: float | None = None, active_candidate: dict[str, Any] | None = None) -> ProgressState:
         evidence = self.acc.evidence()
         hands: dict[HandSide, HandProgress] = {}
@@ -110,4 +112,5 @@ class ProgressTracker:
             hands[side] = HandProgress(side=side, regions=regs, sufficient_regions=suff, unknown_regions=unk)
         return ProgressState(session_id=self.session_id, timestamp=self._last_ts if timestamp is None else timestamp,
                              techniques=dict(self._tech), hands=hands, coverage_estimate=(score / cells) if cells else 0.0,
-                             unattributed_evidence=list(self.acc.unattributed), active_candidate=active_candidate)
+                             unattributed_evidence=list(self.acc.unattributed), active_candidate=active_candidate,
+                             procedure_states={"wetting": "not_detected", "soap": self.soap_state, "rinsing": "not_detected", "drying": "not_detected"})

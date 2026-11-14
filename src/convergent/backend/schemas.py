@@ -114,6 +114,7 @@ class LiveUpdate(ApiModel):
     fused: dict[str, Any] = Field(default_factory=dict)      # status, technique, confidence
     active: dict[str, Any] | None = None                      # temporal validator candidate (technique, supported_s, validated)
     score: dict[str, Any] | None = None                       # WashScore
+    soap: dict[str, Any] | None = None                        # {detected, seen, proxy, validated: false}
     progress: dict[str, Any] | None = None                    # ProgressState (sent when the pipeline refreshed it)
 
 

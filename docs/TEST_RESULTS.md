@@ -347,7 +347,7 @@ real WebSocket subscriber.
 | Region cells with sufficient evidence | 4 / 10 (coverage 0.40) | 6 / 10 (coverage ≥ 0.55; thumbs unknown because the step is missing, one back-of-hand and one fingertips cell unknown because only one side was washed) |
 | Wash score | 3★ / 80, step timers frozen at 76.6 s | 3★ / 80, `finished_at` 76.6 s, timers complete (fingertips 9.4 s, wrist 5.5 s) |
 
-Test-suite: 172 passed (unit + integration + regression + acceptance) on Linux; the acceptance
+Test-suite: 173 passed (unit + integration + regression + acceptance) on Linux; the acceptance
 module is marked `slow` + `mediapipe`. The replay regression fingerprints were re-recorded (the
 model set now includes the side resolver and events carry sides); the `tasks` (macOS) fingerprint
 is re-created by the first macOS test run and should be committed then.

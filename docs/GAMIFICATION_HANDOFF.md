@@ -20,8 +20,12 @@ in-process via `Pipeline.on_frame`). Messages:
  "fused": {"status": "valid", "technique": "thumb_rubbing", "side": "left", "confidence": 0.91},
  "active": {"technique": "thumb_rubbing", "side": "left", "start_ts": 10.0, "supported_s": 2.4, "validated": true},
  "score": { "...WashScore, see below..." },
+ "soap": {"detected": true, "seen": true, "proxy": 0.08, "validated": false},
  "progress": null}
 ```
+`soap` is a demo-grade yes/no: `seen` latches once white lather was visible on the hands for
+0.7 s this wash, `detected` is the live state. It is a brightness heuristic (not validated, tune
+`configs/development.yaml: soap.*` on the real sink); show it as a checkmark, never as a score input.
 `active` is the step the child is doing *right now* (before it is validated); `fused.technique`
 is the model's answer for this frame; `score.steps[*].seconds` are the per-step timers. Subscribe
 to `ws://<laptop>:8000/ws/v1/observations` (read-only needs no token when

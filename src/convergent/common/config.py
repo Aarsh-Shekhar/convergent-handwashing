@@ -151,6 +151,19 @@ class RegionsConfig(_Cfg):
     use_unresolved_side_evidence: bool = False
 
 
+class SoapConfig(_Cfg):
+    """Binary soap/lather check for the UI (regions/foam.py SoapDetector). Unvalidated heuristic:
+    bright, low-saturation pixels inside the hand outline. Never feeds score or evidence."""
+
+    enabled: bool = True
+    min_value: int = 190        # HSV V >= this ...
+    max_saturation: int = 60    # ... and S <= this counts as lather
+    on_threshold: float = 0.05  # smoothed lather fraction to switch on (sample clip: lather 0.03-0.14, dry hands < 0.02)
+    off_threshold: float = 0.025  # ... and to switch off (hysteresis)
+    min_s: float = 0.7          # must stay above on_threshold this long
+    ema_s: float = 0.5          # smoothing time constant
+
+
 class ScoringConfig(_Cfg):
     """Wash score rules (see src/convergent/scoring/wash_score.py). First guesses: tune on real washes."""
 
@@ -207,6 +220,7 @@ class PipelineConfig(_Cfg):
     fusion: FusionConfig = Field(default_factory=FusionConfig)
     temporal: TemporalConfig = Field(default_factory=TemporalConfig)
     regions: RegionsConfig = Field(default_factory=RegionsConfig)
+    soap: SoapConfig = Field(default_factory=SoapConfig)
     scoring: ScoringConfig = Field(default_factory=ScoringConfig)
     projector: ProjectorConfig = Field(default_factory=ProjectorConfig)
     backend: BackendClientConfig = Field(default_factory=BackendClientConfig)

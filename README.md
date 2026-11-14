@@ -88,7 +88,7 @@ Every command below is real (`.venv/bin/python -m convergent.cli --help`):
 * ✅ Wash score: per-step timers that start ~1 s after a step begins, 0–100 points, 0–5 stars,
   `finished` milestone; `live` WebSocket feed at 5 Hz for the game layer (`docs/GAMIFICATION_HANDOFF.md`).
 * ✅ Acceptance test (`make accept`): the full sample clip must give 6 events in WHO order, thumb
-  missing, correct sides, ≥ 3 stars. 172 tests in total, pass on Linux and macOS (M3, M5 Pro).
+  missing, correct sides, ≥ 3 stars. 173 tests in total, pass on Linux and macOS (M3, M5 Pro).
 * ✅ Laptop pipeline, backend (REST + WebSocket), Pi agent + emulator, calibration tools, one-shot
   setup scripts for Mac and Pi, recording/benchmark/training scripts.
 * 🔧 Pi Zero 2 W, Arducam B0176 and RIF6 specifics are implemented against the documented

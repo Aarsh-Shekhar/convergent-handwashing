@@ -5,7 +5,7 @@ Setup for a new laptop: `bash SETUP_MAC.command` (README has the full install/ru
 
 ## 1. What is built and working
 
-Everything below is real code with tests (172 passing on Linux and on M3 / M5 Pro MacBooks).
+Everything below is real code with tests (173 passing on Linux and on M3 / M5 Pro MacBooks).
 
 | # | Piece | What it does | Where |
 |---|---|---|---|

@@ -67,6 +67,14 @@ regions:
   min_sufficient_duration_s: 3.0
   partial_visibility_weight: 0.5
   use_unresolved_side_evidence: false
+soap:                      # binary soap/lather check for the UI only (unvalidated heuristic; tune on our sink by watching the proxy value)
+  enabled: true
+  min_value: 190
+  max_saturation: 60
+  on_threshold: 0.05
+  off_threshold: 0.025
+  min_s: 0.7
+  ema_s: 0.5
 scoring:                   # wash score (technique-level, either hand). First guesses: tune on real washes.
   steps: [palm_to_palm, back_of_hand, interlaced_fingers, backs_of_fingers, thumb_rubbing, fingertip_rubbing, wrist_rubbing]
   step_min_s: 3.0          # validated seconds per step, summed across tries

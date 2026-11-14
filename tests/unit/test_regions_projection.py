@@ -304,3 +304,30 @@ def test_render_commands_and_renderer_expiry():
         RenderCommand.from_message({"type": "render", "seq": 1, "command": "explode", "canvas_width": 10, "canvas_height": 10})
     assert targets_to_items([]) == []
     assert CalibrationProfile.model_validate_json(json.dumps(json.loads(CalibrationProfile(image_width=1, image_height=1, camera_to_projector=np.eye(3).tolist()).model_dump_json())))
+
+
+def test_soap_detector_latches_on_white_lather_and_ignores_skin():
+    import numpy as np
+
+    from convergent.common.types import HandObservation, HandSide
+    from convergent.regions.foam import SoapDetector
+
+    h, w = 240, 320
+    pts = np.array([[0.3 + 0.4 * (i % 5) / 4, 0.3 + 0.4 * (i // 5) / 4, 0.0] for i in range(21)])
+    hand = HandObservation.from_array(pts, side=HandSide.UNKNOWN, track_id=1, handedness_confidence=0.5, tracking_quality=0.9)
+    skin = np.full((h, w, 3), (120, 160, 210), np.uint8)   # BGR skin-ish: bright but saturated
+    foam = skin.copy()
+    foam[60:200, 90:230] = (245, 245, 245)                  # white lather over the hand
+    det = SoapDetector(on_threshold=0.12, off_threshold=0.06, min_s=0.5, ema_s=0.1)
+    for i in range(10):
+        st = det.update(skin, [hand], i / 15.0)
+    assert not st.detected and not st.seen and st.proxy < 0.06
+    for i in range(10, 40):
+        st = det.update(foam, [hand], i / 15.0)
+    assert st.detected and st.seen and st.proxy > 0.5 and st.seen_ts is not None
+    for i in range(40, 70):  # lather gone: 'detected' drops, 'seen' stays latched
+        st = det.update(skin, [hand], i / 15.0)
+    assert not st.detected and st.seen
+    assert det.update(None, [], 5.0).seen  # no image / no hands: state unchanged
+    det.reset()
+    assert not det.update(skin, [hand], 0.0).seen

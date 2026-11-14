@@ -65,7 +65,7 @@ def _print_summary(summary) -> None:  # type: ignore[no-untyped-def]
         print(f"coverage_estimate={summary.progress['coverage_estimate']:.2f} (observed-evidence estimate, not cleanliness)")
     sc = getattr(summary, "score", None)
     if sc:
-        status = f"FINISHED at {sc['finished_at_ts']:.1f}s (score locked)" if sc["finished"] else "not finished"
+        status = f"FINISHED at {sc['finished_at_ts']:.1f}s" if sc["finished"] else "not finished"
         print(f"wash score: {sc['stars']}/5 stars, {sc['points']} points, {status}")
         print(f"  steps done {sc['steps_done']}/{sc['steps_required']} needed (each {sc['step_min_s']:.0f}s), "
               f"total {sc['total_s']:.1f}s of {sc['total_min_s']:.0f}s needed")
@@ -74,6 +74,9 @@ def _print_summary(summary) -> None:  # type: ignore[no-untyped-def]
         if not sc["finished"] and sc["next_step"]:
             print(f"  next suggested step: {sc['next_step']}")
         print("  (score = recognized washing-motion time, not proof of clean hands)")
+    soap = (summary.progress or {}).get("procedure_states", {}).get("soap")
+    if soap:
+        print(f"soap/lather seen: {'yes' if soap in ('seen', 'detected') else 'no'}  (unvalidated brightness heuristic, UI only)")
     if summary.results_dir:
         print(f"results: {summary.results_dir}")
     if summary.backend:
@@ -121,7 +124,7 @@ def cmd_camera(args: argparse.Namespace) -> int:
             img = render_overlay(frame, r.hands, [f"fused={r.fused.native_label or r.fused.status.value} conf={r.fused.confidence}",
                                                   "Esc = stop and print score"])
             if r.score is not None:
-                draw_score_panel(img, r.score)
+                draw_score_panel(img, r.score, soap=r.soap)
             cv2.imshow("convergent diagnostics", img)
             if cv2.waitKey(1) & 0xFF == 27:
                 pipe.stop()  # normal end: summary, score and session end are saved

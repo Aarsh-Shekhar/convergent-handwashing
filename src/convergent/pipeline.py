@@ -60,6 +60,7 @@ from convergent.projection.calibration import load_profile
 from convergent.projection.diagnostics import render_command_for_targets
 from convergent.projection.mapping import ProjectionMapper
 from convergent.regions.evidence import EvidenceAccumulator
+from convergent.regions.foam import SoapDetector, SoapState
 from convergent.regions.progress import ProgressState, ProgressTracker
 from convergent.scoring.wash_score import WashScore, WashScorer
 from convergent.vision.hand_tracker import HandTracker
@@ -79,6 +80,7 @@ class FrameResult:
     timing_ms: dict[str, float]
     progress: ProgressState | None = None
     score: WashScore | None = None  # live wash score, present on every frame
+    soap: SoapState | None = None   # binary lather check (UI only, unvalidated heuristic)
 
 
 @dataclass
@@ -126,6 +128,8 @@ class Pipeline:
         self.aligner = PredictionAligner(cfg.fusion.alignment_tolerance_s, cfg.fusion.max_prediction_age_s)
         self.events = EventDetector(cfg.temporal, self.session_id)
         self.sides = SideResolver.from_config(cfg.side_resolver)
+        sc = cfg.soap
+        self.soap = SoapDetector(sc.min_value, sc.max_saturation, sc.on_threshold, sc.off_threshold, sc.min_s, sc.ema_s) if sc.enabled else None
         self.evidence = EvidenceAccumulator(cfg.regions)
         self.progress = ProgressTracker(self.session_id, self.evidence)
         self.scorer = WashScorer(cfg.scoring, self.session_id)
@@ -225,6 +229,10 @@ class Pipeline:
         self.scorer.add_events(new_events)
         self._all_events.extend(new_events)
         score = self.scorer.update(frame.capture_ts, self.events.state.active, self.events.pending)
+        soap = None
+        if self.soap is not None:
+            soap = self.soap.update(frame.image, hands.hands + hands.unassigned, frame.capture_ts)
+            self.progress.soap_state = "detected" if soap.detected else ("seen" if soap.seen else "not_detected")
         targets =self.mapper.map_hands(hands, (frame.width, frame.height)) if self.mapper.ready else []
         frame.timestamps.processed_ts = monotonic()
         timing["total"] = (time.perf_counter() - t0) * 1000.0
@@ -233,7 +241,7 @@ class Pipeline:
         if new_events or frame.frame_id % 30 == 0:
             progress = self.progress.snapshot(frame.capture_ts, self._candidate_dict())
         result = FrameResult(frame=frame.without_image(), hands=hands, branch_predictions=preds, fused=fused, events=new_events,
-                             targets=targets, timing_ms=timing, progress=progress, score=score)
+                             targets=targets, timing_ms=timing, progress=progress, score=score, soap=soap)
         self._sink(result)
         if self.on_frame:
             self.on_frame(result)
@@ -300,6 +308,7 @@ class Pipeline:
                           "side": None if c is None else c.side.value, "confidence": r.fused.confidence},
                 "active": self._candidate_dict(),
                 "score": None if r.score is None else r.score.model_dump(mode="json"),
+                "soap": None if r.soap is None else {"detected": r.soap.detected, "seen": r.soap.seen, "proxy": r.soap.proxy, "validated": False},
                 "progress": None if r.progress is None else r.progress.model_dump(mode="json")}
 
     def _flush_predictions(self) -> None:

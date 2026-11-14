@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+from typing import Any
 
 import cv2
 import numpy as np
@@ -93,7 +94,24 @@ def _star(img: np.ndarray, cx: int, cy: int, r: int, filled: bool) -> None:
         cv2.polylines(img, [poly], True, _GREY, 1, cv2.LINE_AA)
 
 
-def draw_score_panel(img: np.ndarray, score: WashScore, width: int = 236) -> np.ndarray:
+def draw_soap_chip(img: np.ndarray, soap: Any, x1: int, y: int) -> None:
+    """Top-right 'SOAP' checkmark: green tick when lather has been seen this wash, bright while it is
+    visible now, grey otherwise. Unvalidated heuristic; shows the proxy value small for tuning."""
+    on = bool(getattr(soap, "seen", False))
+    now = bool(getattr(soap, "detected", False))
+    color = _GREEN if on else _GREY
+    x0 = x1 - 96
+    cv2.rectangle(img, (x0, y - 16), (x1, y + 6), (40, 40, 40), -1)
+    cv2.rectangle(img, (x0, y - 16), (x1, y + 6), color, 1)
+    _text(img, "SOAP", (x0 + 6, y), 0.5, color, 1)
+    if on:  # tick
+        cv2.polylines(img, [np.array([[x0 + 56, y - 5], [x0 + 62, y + 1], [x0 + 74, y - 11]], np.int32)], False, _GREEN if now else (60, 140, 60), 2, cv2.LINE_AA)
+    else:
+        _text(img, "-", (x0 + 60, y), 0.5, _GREY, 1)
+    _text(img, f"{getattr(soap, 'proxy', 0.0):.2f}", (x0 + 78, y + 4), 0.32, color, 1)
+
+
+def draw_score_panel(img: np.ndarray, score: WashScore, width: int = 236, soap: Any = None) -> np.ndarray:
     """Draw per-step timers, total time, stars, points and the finish banner on the right side (in place)."""
     h, w = img.shape[:2]
     row_h = 20
@@ -108,6 +126,8 @@ def draw_score_panel(img: np.ndarray, score: WashScore, width: int = 236) -> np.
     _text(img, "WASH SCORE", (x, y), 0.5, _WHITE, 1)
     _text(img, f"{score.points} pts", (x1 - 62, y), 0.5, _WHITE, 1)
     y += 24
+    if soap is not None:
+        draw_soap_chip(img, soap, x0 - 8, y0 + 18)
     for i in range(5):
         _star(img, x + 10 + i * 24, y, 9, i < score.stars)
     y += 22

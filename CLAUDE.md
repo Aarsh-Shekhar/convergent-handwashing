@@ -149,7 +149,7 @@ Sample clip result: 4 of 7 steps found (no palm, thumb or wrist), 49.6 s total, 
 
 ## Known limits (state these honestly)
 
-- The score and coverage measure recognized motion time. They are not proof of clean hands, soap contact or microbial removal. Foam/soap detection is experimental.
+- The score and coverage measure recognized motion time. They are not proof of clean hands, soap contact or microbial removal. The SOAP checkmark (2026-11-14, `regions/foam.py` SoapDetector, `soap:` config) is a brightness heuristic for the UI and the `live` feed only; it never touches score or evidence.
 - Region coverage needs resolved sides; the side resolver provides them (sample clip: 0.40 -> 0.6). Its accuracy on our camera is unmeasured; `side_resolver.mirrored` must match the mount.
 - Recognition accuracy has only been measured on public top-down sink videos of adults (METC, Kaggle). It has not been measured on Andrew's webcam, the faucet camera or children's hands. Passing tests is software verification, not real-world accuracy.
 - One pipeline run is one session. There is no automatic per-child session lifecycle and no child identity in the schema. `WashScorer.reset()` is ready for future lifecycle work.
