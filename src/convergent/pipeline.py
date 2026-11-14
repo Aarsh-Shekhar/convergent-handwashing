@@ -53,6 +53,7 @@ from convergent.detection.labels import LabelRegistry
 from convergent.detection.pair_adapter import TemporalV2Adapter
 from convergent.detection.pair_features import HandSlotter
 from convergent.detection.registry import ModelRegistry
+from convergent.detection.side_resolver import SideResolver
 from convergent.detection.skia_adapter import SkiaLegacyAdapter, SkiaTemporalAdapter
 from convergent.detection.yolo_adapter import YoloAdapter
 from convergent.projection.calibration import load_profile
@@ -124,6 +125,7 @@ class Pipeline:
         self.fusion = FusionEngine(cfg.fusion, self.registry)
         self.aligner = PredictionAligner(cfg.fusion.alignment_tolerance_s, cfg.fusion.max_prediction_age_s)
         self.events = EventDetector(cfg.temporal, self.session_id)
+        self.sides = SideResolver.from_config(cfg.side_resolver)
         self.evidence = EvidenceAccumulator(cfg.regions)
         self.progress = ProgressTracker(self.session_id, self.evidence)
         self.scorer = WashScorer(cfg.scoring, self.session_id)
@@ -153,6 +155,7 @@ class Pipeline:
         self._land_rows: list[tuple[float, np.ndarray, np.ndarray]] = []
         self._land_aspect = 4.0 / 3.0
         self._last_region_push = -1e9
+        self._last_live_push = -1e9
         self._render_seq = 0
         self._stop_requested = False
         self.on_frame: Callable[[FrameResult], None] | None = None
@@ -164,6 +167,8 @@ class Pipeline:
             st = adapter.load()
             self.model_status[adapter.model_id] = st
             log.info("model %-14s available=%-5s %s", adapter.model_id, st.available, st.message)
+        self.model_status["side_resolver"] = self.sides.status()
+        log.info("model %-14s available=%-5s %s", "side_resolver", self.sides.available, self.model_status["side_resolver"].message)
         if self.yolo.available and not self.deterministic:
             self._yolo_pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="yolo")
         return self.model_status
@@ -212,7 +217,9 @@ class Pipeline:
         if fused.canonical is not None:
             self.progress.observe_detection(fused.canonical.technique)
         self.evidence.observe_hands(hands)
-        new_events = self.events.update(fused, quality)
+        if fused.canonical is not None:
+            self.sides.observe(hands, fused.canonical.technique, frame.capture_ts)
+        new_events = self.sides.resolve_all(self.events.update(fused, quality))
         for ev in new_events:
             self.progress.add_event(ev)
         self.scorer.add_events(new_events)
@@ -277,9 +284,23 @@ class Pipeline:
             if r.events or r.frame.capture_ts - self._last_region_push >= 5.0:
                 self._last_region_push = r.frame.capture_ts
                 self._safe(lambda: self.backend.post_regions(self.session_id, r.frame.capture_ts, self.evidence.evidence()))  # type: ignore[union-attr]
+            hz = self.cfg.backend.live_hz
+            if hz > 0 and (r.events or r.frame.capture_ts - self._last_live_push >= 1.0 / hz):
+                self._last_live_push = r.frame.capture_ts
+                self._safe(lambda: self.backend.post_live(self.session_id, self.live_update(r)))  # type: ignore[union-attr]
         if self.gateway is not None and r.targets:
             self._render_seq = self.gateway.next_render_seq()
             self.gateway.send_render(render_command_for_targets(self._render_seq, r.targets, self.mapper.profile))
+
+    def live_update(self, r: FrameResult) -> dict[str, Any]:
+        """The `live` message body: what the game layer needs every few frames (see docs/GAMIFICATION_HANDOFF.md)."""
+        c = r.fused.canonical
+        return {"ts": r.frame.capture_ts, "frame_id": r.frame.frame_id, "hands": r.hands.num_hands,
+                "fused": {"status": r.fused.status.value, "technique": None if c is None else c.technique,
+                          "side": None if c is None else c.side.value, "confidence": r.fused.confidence},
+                "active": self._candidate_dict(),
+                "score": None if r.score is None else r.score.model_dump(mode="json"),
+                "progress": None if r.progress is None else r.progress.model_dump(mode="json")}
 
     def _flush_predictions(self) -> None:
         if self.backend is None or not self._pending_predictions:
@@ -348,7 +369,7 @@ class Pipeline:
             # Ctrl+C ends the run like a normal stop so the summary, score and session end are still saved.
             log.info("stopped by user after %d frames", frames)
         finally:
-            tail = self.events.flush(last_ts)
+            tail = self.sides.resolve_all(self.events.flush(last_ts))
             for ev in tail:
                 self.progress.add_event(ev)
             self.scorer.add_events(tail)

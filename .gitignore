@@ -33,6 +33,11 @@ models/temporal_v2/*
 # trained hand-relative temporal model (METC + Kaggle; see docs/TEST_RESULTS.md section 7)
 !models/temporal_v2/current/
 !models/temporal_v2/current/**
+!models/side_resolver/
+models/side_resolver/*
+# 108 KB side resolver (which hand receives a sided technique; see docs/TEST_RESULTS.md section 9)
+!models/side_resolver/current/
+!models/side_resolver/current/**
 # datasets and extracted landmark sequences are not committed
 data/HandWashDataset/
 data/landmark_sequences/

@@ -103,6 +103,15 @@ async def add_events(session_id: str, body: S.EventBatch, request: Request, db: 
     return result
 
 
+@router.post("/api/v1/sessions/{session_id}/live", status_code=status.HTTP_202_ACCEPTED, dependencies=[Depends(require_write)])
+async def post_live(session_id: str, body: S.LiveUpdate, request: Request):  # type: ignore[no-untyped-def]
+    """Fan a live pipeline update out to /ws/v1/observations subscribers (type `live`). Nothing is stored."""
+    from convergent.communication.protocol import make_message
+
+    n = await request.app.state.hub.broadcast("observations", make_message("live", 0, session_id=session_id, **body.model_dump(mode="json")))
+    return {"subscribers": n}
+
+
 @router.get("/api/v1/sessions/{session_id}/events", response_model=list[S.EventOut], dependencies=[Depends(require_read)])
 def list_events(session_id: str, db: DbSession = Depends(get_db)):  # type: ignore[no-untyped-def]
     try:

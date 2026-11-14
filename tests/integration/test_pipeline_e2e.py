@@ -69,11 +69,11 @@ def test_model_unavailable_mode_produces_no_fake_detections(tmp_path):
     cfg = base_config(tmp_path, forest=False)
     pipe = Pipeline(cfg, tracker=HandTracker(cfg.tracker, ScriptedBackend(two_hand_script(60))), deterministic=True)
     status = pipe.load_models()
-    assert not any(s.available for s in status.values())
+    assert not any(s.available for k, s in status.items() if k != "side_resolver")  # the side resolver is not a technique model
     summary = pipe.run()
     assert summary.frames == 60 and summary.events == []
     assert set(summary.fused_counts) == {"no_input"} and summary.progress["coverage_estimate"] == 0.0
-    assert all("MODEL_UNAVAILABLE" in v["message"] or "disabled" in v["message"] for v in summary.model_status.values())
+    assert all("MODEL_UNAVAILABLE" in v["message"] or "disabled" in v["message"] for k, v in summary.model_status.items() if k != "side_resolver")
 
 
 def test_deterministic_replay_produces_identical_events_and_persists_to_backend(tmp_path):

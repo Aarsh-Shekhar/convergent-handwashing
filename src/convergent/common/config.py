@@ -97,6 +97,17 @@ class TemporalV2Config(_Cfg):
     symmetric: bool = True     # average the prediction over both hand-slot orders
 
 
+class SideResolverConfig(_Cfg):
+    """Which hand receives a sided technique (detection/side_resolver.py). Sets GestureEvent.side for
+    temporal_v2 events so region evidence can be attributed to a hand."""
+
+    enabled: bool = True
+    artifact_dir: str = "models/side_resolver/current"
+    mirrored: bool = False   # true when the camera faces the user (image-left = user's RIGHT hand)
+    min_frames: int = 6      # scored frames inside the event needed before a side is assigned
+    margin: float = 0.15     # |mean P(right) - 0.5| must exceed this, else the side stays unresolved
+
+
 class YoloConfig(_Cfg):
     enabled: bool = True
     weights_path: str = "models/yolo/handwash_yolov5.pt"
@@ -182,6 +193,7 @@ class BackendClientConfig(_Cfg):
     base_url: str = "http://127.0.0.1:8000"
     timeout_s: float = 5.0
     batch_size: int = 32
+    live_hz: float = 5.0    # rate of `live` WebSocket messages (fused label, score, progress) posted via POST .../live; 0 = off
 
 
 class PipelineConfig(_Cfg):
@@ -191,6 +203,7 @@ class PipelineConfig(_Cfg):
     skia: SkiaConfig = Field(default_factory=SkiaConfig)
     yolo: YoloConfig = Field(default_factory=YoloConfig)
     temporal_v2: TemporalV2Config = Field(default_factory=TemporalV2Config)
+    side_resolver: SideResolverConfig = Field(default_factory=SideResolverConfig)
     fusion: FusionConfig = Field(default_factory=FusionConfig)
     temporal: TemporalConfig = Field(default_factory=TemporalConfig)
     regions: RegionsConfig = Field(default_factory=RegionsConfig)

@@ -1,5 +1,5 @@
 #!/bin/bash
-# One-shot Raspberry Pi 3 A+ setup for the camera agent (run ON the Pi, from the repo root):
+# One-shot Raspberry Pi setup for the camera agent: Pi Zero 2 W (current plan) or Pi 3 A+ (run ON the Pi, from the repo root):
 #
 #   bash scripts/pi/install_pi.sh <LAPTOP_IP> <DEVICE_TOKEN>
 #
@@ -19,6 +19,10 @@ fail() { printf '\n!!! FAILED at: %s (see setup_pi_log.txt)\n' "$1"; exit 1; }
 
 step "0. system"
 uname -a; cat /proc/device-tree/model 2>/dev/null; echo; free -m | head -2
+if grep -q "Zero 2" /proc/device-tree/model 2>/dev/null; then
+  echo "Pi Zero 2 W detected: 512 MB RAM. Adding a 512 MB swap file so pip and the camera stack never OOM; agent defaults (640x480 @ 15 fps, JPEG q70) fit 2.4 GHz Wi-Fi."
+  if [ ! -f /swapfile ]; then sudo fallocate -l 512M /swapfile && sudo chmod 600 /swapfile && sudo mkswap /swapfile >/dev/null && sudo swapon /swapfile && echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab >/dev/null; fi
+fi
 
 step "1. apt packages (camera stack comes from apt, NOT pip)"
 sudo apt-get update && sudo apt-get install -y git python3-venv python3-pip python3-picamera2 python3-libcamera python3-numpy python3-pil python3-simplejpeg || fail "apt"
@@ -33,7 +37,7 @@ sed -e "s#^laptop_url:.*#laptop_url: ws://${LAPTOP_IP}:8765#" configs/pi_agent.y
 printf 'CONVERGENT_DEVICE_TOKEN=%s\n' "$TOKEN" | sudo tee /etc/convergent.env >/dev/null && sudo chmod 600 /etc/convergent.env
 echo "wrote $HOME/pi_agent.yaml (laptop_url: ws://${LAPTOP_IP}:8765) and /etc/convergent.env"
 
-step "4. camera overlay (Arducam B0176 = OV5647) + console boot"
+step "4. camera overlay (Arducam B0176 = OV5647; Zero 2 W needs the 22-pin mini-CSI ribbon) + console boot"
 CFG=/boot/firmware/config.txt; [ -f "$CFG" ] || CFG=/boot/config.txt
 if ! grep -q '^dtoverlay=ov5647' "$CFG"; then
   sudo sed -i 's/^camera_auto_detect=1/camera_auto_detect=0/' "$CFG"

@@ -4,7 +4,7 @@
 
 | Process | Where | Role |
 |---|---|---|
-| **Pi agent** (`convergent.pi_agent`) | Raspberry Pi 3 A+ (512 MB) | Picamera2 capture → JPEG → WebSocket client (bounded 2-deep queue, latest wins) → laptop. Receives render commands, draws diagnostic frames to `/dev/fb0` (HDMI → RIF6). Heartbeats with throttle/temperature/memory. Reconnects with backoff. No ML, no OpenCV. |
+| **Pi agent** (`convergent.pi_agent`) | Raspberry Pi Zero 2 W (or 3 A+) (512 MB) | Picamera2 capture → JPEG → WebSocket client (bounded 2-deep queue, latest wins) → laptop. Receives render commands, draws diagnostic frames to `/dev/fb0` (HDMI → RIF6). Heartbeats with throttle/temperature/memory. Reconnects with backoff. No ML, no OpenCV. |
 | **Pipeline** (`convergent.cli network|replay|camera`) | Laptop | Hosts the **device gateway** (WebSocket server, port 8765) that decodes frames into a `NetworkSource`; runs tracker → branches → fusion → validation → regions → projection; sends render commands back over the same connection; writes to the backend over HTTP. |
 | **Backend** (`convergent.cli backend`) | Laptop | FastAPI + SQLAlchemy + Alembic. REST `/api/v1/*`, WebSockets `/ws/v1/{observations,render,device}`. SQLite for dev/tests, PostgreSQL (docker-compose) for persistence. |
 

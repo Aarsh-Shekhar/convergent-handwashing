@@ -178,3 +178,27 @@ def test_websocket_pubsub_device_status_and_reconnect(live_server):
     with pytest.raises(Exception):
         with connect(f"{base}/ws/v1/device?token=wrong") as dev:
             dev.recv(timeout=5)
+
+
+def test_live_endpoint_fans_out_to_observation_subscribers(live_server):
+    """The game layer's feed: POST .../live (write token) -> `live` message on /ws/v1/observations, nothing stored."""
+    import httpx
+    from websockets.sync.client import connect
+
+    sid = "ses_live_test"
+    r = httpx.post(f"{live_server.http}/api/v1/sessions", headers={"Authorization": f"Bearer {TOKEN}"},
+                   json={"session_id": sid, "source_id": "test", "width": 640, "height": 480, "target_fps": 15,
+                         "processing_config": {}, "model_versions": {}, "capture_clock": "monotonic"})
+    assert r.status_code == 201
+    body = {"ts": 12.5, "frame_id": 187, "hands": 2, "fused": {"status": "valid", "technique": "thumb_rubbing", "side": "left", "confidence": 0.91},
+            "active": {"technique": "thumb_rubbing", "side": "left", "start_ts": 10.0, "supported_s": 2.4, "validated": True},
+            "score": {"stars": 2, "points": 55, "steps_done": 3, "finished": False}, "progress": None}
+    with connect(f"{live_server.ws}/ws/v1/observations") as sub:
+        assert httpx.post(f"{live_server.http}/api/v1/sessions/{sid}/live", json=body, headers={"Authorization": f"Bearer {TOKEN}"}).status_code == 202
+        msg = json.loads(sub.recv(timeout=5))
+    assert msg["type"] == "live" and msg["session_id"] == sid and msg["fused"]["technique"] == "thumb_rubbing"
+    assert msg["score"]["stars"] == 2 and msg["active"]["supported_s"] == 2.4
+    # write token required; unknown fields rejected; nothing persisted on the session
+    assert httpx.post(f"{live_server.http}/api/v1/sessions/{sid}/live", json=body).status_code in (401, 403)
+    assert httpx.post(f"{live_server.http}/api/v1/sessions/{sid}/live", json=body | {"bogus": 1}, headers={"Authorization": f"Bearer {TOKEN}"}).status_code == 422
+    assert httpx.get(f"{live_server.http}/api/v1/sessions/{sid}/events").json() == []

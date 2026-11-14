@@ -6,11 +6,15 @@ that an anatomical region was addressed. It never claims soap coverage or cleanl
 ``progress.py`` is explicitly defined on top of it).
 
 Mapping (WHO technique -> regions it is intended to address). For sided techniques the
-side is the hand RECEIVING the action; the acting hand's palm also gets (weaker) evidence.
+side carried by the event is the hand RECEIVING the action (the static hand, see
+configs/labels.yaml). For back of hand, thumb and wrist that is also the hand being cleaned;
+for fingertip rubbing the cleaned fingertips belong to the OTHER (acting) hand and the receiving
+hand contributes its palm.
 """
 
 from __future__ import annotations
 
+from collections import deque
 from dataclasses import dataclass, field
 
 from convergent.common.config import RegionsConfig
@@ -34,8 +38,12 @@ TECHNIQUE_REGIONS: dict[str, list[tuple[str, Region, float]]] = {
     L.INTERLACED_FINGERS: [("both", Region.FINGERS, 1.0), ("both", Region.PALM, 0.5)],
     L.BACKS_OF_FINGERS: [("both", Region.FINGERS, 1.0)],
     L.THUMB_RUBBING: [("self", Region.THUMB, 1.0), ("other", Region.PALM, 0.3)],
-    L.FINGERTIP_RUBBING: [("self", Region.FINGERTIPS, 1.0), ("other", Region.PALM, 0.5)],
+    L.FINGERTIP_RUBBING: [("other", Region.FINGERTIPS, 1.0), ("self", Region.PALM, 0.5)],
 }
+
+
+_VIS_RANK = {VisibilityState.MISSING: 0, VisibilityState.OCCLUDED: 1, VisibilityState.PARTIAL: 2, VisibilityState.VISIBLE: 3}
+_RANK_VIS = {v: k for k, v in _VIS_RANK.items()}
 
 
 def _other(side: HandSide) -> HandSide:
@@ -65,6 +73,10 @@ class EvidenceAccumulator:
             (r, s): _Acc() for r in Region for s in (HandSide.LEFT, HandSide.RIGHT)
         }
         self._last_visibility: dict[HandSide, VisibilityState] = {HandSide.LEFT: VisibilityState.MISSING, HandSide.RIGHT: VisibilityState.MISSING}
+        # best visibility of ANY tracked hand per frame (ts, rank). In a sided technique the receiving
+        # hand is under the acting hand by definition, so gating on that hand's own visibility (or on
+        # MediaPipe's left/right guess) would mark every such event "partial".
+        self._vis_hist: deque[tuple[float, int]] = deque(maxlen=20000)
         self.unattributed: list[dict[str, object]] = []
 
     def reset(self) -> None:
@@ -74,6 +86,18 @@ class EvidenceAccumulator:
         for side in (HandSide.LEFT, HandSide.RIGHT):
             h = hands.get(side)
             self._last_visibility[side] = h.visibility if h is not None else VisibilityState.MISSING
+        ranks = [_VIS_RANK[h.visibility] for h in hands.hands + hands.unassigned]
+        self._vis_hist.append((hands.capture_ts, max(ranks, default=0)))
+
+    def _span_visibility(self, start_ts: float, end_ts: float) -> VisibilityState:
+        """Typical (median) best-hand visibility over the frames of an event."""
+        ranks = [r for ts, r in self._vis_hist if start_ts - 1e-6 <= ts <= end_ts + 1e-6]
+        if not ranks:  # no frame inside the span: last observation before it, else the latest one
+            before = [r for ts, r in self._vis_hist if ts <= end_ts + 1e-6]
+            last = before[-1] if before else (self._vis_hist[-1][1] if self._vis_hist else 0)
+            return _RANK_VIS[last]
+        ranks.sort()
+        return _RANK_VIS[ranks[len(ranks) // 2]]
 
     def add_event(self, ev: GestureEvent) -> None:
         if ev.validation_status != ValidationStatus.VALIDATED:
@@ -97,9 +121,11 @@ class EvidenceAccumulator:
                     self.unattributed.append({"event_id": ev.event_id, "technique": ev.technique, "region": region.value,
                                               "duration_s": ev.validated_duration_s, "reason": "side unresolved"})
                     continue
+            span_vis = self._span_visibility(ev.start_ts, ev.end_ts)
             for side, weight in sides:
                 a = self._acc[(region, side)]
-                vis = self._last_visibility[side]
+                # symmetric techniques: that hand's own visibility; sided: the pair's (receiving hand is covered)
+                vis = self._last_visibility[side] if target == "both" else span_vis
                 vis_w = 1.0 if vis == VisibilityState.VISIBLE else (self.cfg.partial_visibility_weight if vis == VisibilityState.PARTIAL else 0.25)
                 a.duration += ev.validated_duration_s
                 a.weighted += ev.validated_duration_s * weight * vis_w * ev.confidence

@@ -32,6 +32,7 @@ class ClientStats:
     predictions_sent: int = 0
     events_sent: int = 0
     region_snapshots: int = 0
+    live_sent: int = 0
     failures: int = 0
     last_error: str = ""
     deferred: list[dict[str, Any]] = field(default_factory=list)
@@ -105,6 +106,12 @@ class BackendClient:
     def post_regions(self, session_id: str, snapshot_ts: float, evidence: list[RegionEvidence]) -> dict[str, Any]:
         res = self._req("POST", f"/api/v1/sessions/{session_id}/regions", {"snapshot_ts": snapshot_ts, "evidence": [e.model_dump(mode="json") for e in evidence]})
         self.stats.region_snapshots += 1
+        return res
+
+    def post_live(self, session_id: str, update: dict[str, Any]) -> dict[str, Any]:
+        """Fire-and-forget live update (no retries: the next one supersedes it)."""
+        res = self._req("POST", f"/api/v1/sessions/{session_id}/live", update, retries=0)
+        self.stats.live_sent += 1
         return res
 
     def post_calibration(self, profile: CalibrationProfile, device_id: str | None = None, activate: bool = True) -> dict[str, Any]:

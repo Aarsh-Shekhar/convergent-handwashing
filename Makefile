@@ -2,7 +2,7 @@
 UV ?= uv
 PY := .venv/bin/python
 
-.PHONY: help install install-legacy install-pi models yolov5 samples backend replay camera network pi-emulator calibrate evaluate train-lstm start test test-fast lint status db-up
+.PHONY: help install install-legacy install-pi models yolov5 samples backend replay camera network pi-emulator calibrate evaluate train-lstm start test test-fast accept lint status db-up
 
 help:
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-14s %s\n", $$1, $$2}'
@@ -64,6 +64,9 @@ test: ## run the whole test-suite
 
 test-fast: ## unit tests only (no MediaPipe model runs)
 	$(PY) -m pytest -q tests/unit -m "not mediapipe"
+
+accept: ## model v1.0 acceptance: full sample clip through the installed stack (~1 min)
+	$(PY) -m pytest -q tests/acceptance -p no:cacheprovider
 
 lint: ## ruff
 	$(PY) -m ruff check src tests scripts

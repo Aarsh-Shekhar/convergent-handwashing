@@ -105,6 +105,18 @@ class BatchResult(BaseModel):
     errors: list[str] = Field(default_factory=list)
 
 
+class LiveUpdate(ApiModel):
+    """Not persisted: rebroadcast as a `live` message on /ws/v1/observations for the game layer."""
+
+    ts: float
+    frame_id: int | None = None
+    hands: int = 0
+    fused: dict[str, Any] = Field(default_factory=dict)      # status, technique, confidence
+    active: dict[str, Any] | None = None                      # temporal validator candidate (technique, supported_s, validated)
+    score: dict[str, Any] | None = None                       # WashScore
+    progress: dict[str, Any] | None = None                    # ProgressState (sent when the pipeline refreshed it)
+
+
 class EventBatch(ApiModel):
     events: list[GestureEvent] = Field(min_length=1, max_length=500)
 

@@ -4,7 +4,7 @@ Status: **prepared, not executed on hardware** (the Pi, Arducam B0176 and RIF6 h
 arrived). Commands reference the official Raspberry Pi and Arducam documentation; verify each
 step on the device and update this file.
 
-Hardware (fixed): Pi 3 A+ (512 MB, 1 USB, CSI, full-size HDMI, micro-USB power), Arducam B0176
+Hardware (fixed): Pi Zero 2 W (or 3 A+) (512 MB, 1 USB, CSI, full-size HDMI, micro-USB power), Arducam B0176
 (OV5647 5 MP, motorized focus, CSI ribbon), PNY 32 GB microSD, onn. 10,000 mAh power bank
 (USB-A → micro-USB), full-size HDMI → mini-HDMI to the RIF6 Cube, Frost King foam tape mount.
 
@@ -42,7 +42,7 @@ Follow Arducam's quick-start for the OV5647 motorized-focus camera on Bookworm
 (https://docs.arducam.com/Raspberry-Pi-Camera/Motorized-Focus-Camera/Quick-Start-Guide/OV5647-Motorized-Focus-Camera/).
 Expected steps (verify against the page for the OS release you flashed):
 
-1. Connect the 15-pin ribbon (contacts facing the HDMI side on the Pi 3 A+ CSI connector).
+1. Connect the 15-pin ribbon (contacts facing the HDMI side on the Pi Zero 2 W (or 3 A+) CSI connector).
 2. `/boot/firmware/config.txt`: `camera_auto_detect=0` and `dtoverlay=ov5647` (Arducam
    documents a VCM-enabled overlay/tuning file for focus control – install exactly what the
    page specifies for your OS version; keep a copy of the original tuning JSON).
@@ -97,7 +97,7 @@ WantedBy=multi-user.target
 
 ## 7. Bandwidth / latency trade-off (spec §7)
 
-640×480 JPEG q=80 ≈ 35–60 KB/frame → 4–7 Mbit/s at 15 FPS. The Pi 3 A+ 2.4/5 GHz radio
+640×480 JPEG q=80 ≈ 35–60 KB/frame → 4–7 Mbit/s at 15 FPS. The Pi Zero 2 W (or 3 A+) 2.4/5 GHz radio
 handles this with ~1–2 frames (70–130 ms) of encode+transport latency on a quiet 5 GHz network.
 Bottlenecks are JPEG encoding on the CPU (~15–25 ms/frame at 640×480 with simplejpeg) and Wi-Fi
 contention. H.264 (hardware encoder, ~0.5 Mbit/s) would be added as a new `encoding` value in

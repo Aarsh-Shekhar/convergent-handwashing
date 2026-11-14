@@ -52,5 +52,9 @@ def test_replay_is_reproducible(sample_video):
         stored = json.loads(fp.read_text())
         if stored.get("available") == avail and stored.get("tracker") == tracker_id:
             assert [tuple(e) for e in stored["events"]] == ev1, f"replay events changed vs stored fingerprint (delete {fp.name} and re-run if intended)"
+        else:
+            # a different set of loaded models is a different system: record it instead of silently skipping
+            fp.write_text(json.dumps(record, indent=2))
+            pytest.fail(f"{fp.name} was recorded with a different model set; it has been rewritten, run again and commit it")
     else:
         fp.write_text(json.dumps(record, indent=2))

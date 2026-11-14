@@ -29,6 +29,12 @@ yolo:
   weights_path: models/yolo/handwash_yolov5.pt
   every_n_frames: 3
   conf_threshold: 0.25
+side_resolver:             # which hand receives a sided technique (detection/side_resolver.py); artifact trained on Kaggle, see docs/TEST_RESULTS.md section 9
+  enabled: true
+  artifact_dir: models/side_resolver/current
+  mirrored: false          # set true when the camera faces the user (image-left = user's right hand)
+  min_frames: 6
+  margin: 0.15
 fusion:
   method: reliability_weighted
   weights:            # same rationale as configs/development.yaml

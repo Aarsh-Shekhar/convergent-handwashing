@@ -1,4 +1,10 @@
-# Hardware-day runbook (Pi 3 A+ · Arducam B0176 · RIF6 Cube)
+# Hardware-day runbook (Pi Zero 2 W · Arducam B0176 · RIF6 Cube)
+
+Current plan (2026-11-13): **Raspberry Pi Zero 2 W** (512 MB, 2.4 GHz Wi-Fi only, 22-pin
+mini-CSI, mini-HDMI). Everything below works for the 3 A+ too. Zero 2 W specifics: use the
+22-pin-to-15-pin camera ribbon for the B0176, a mini-HDMI adapter for the RIF6, expect ~12–15 fps
+at 640×480 JPEG q70 over 2.4 GHz (the agent defaults), and keep the laptop on the same 2.4 GHz
+network or a dual-band router. `install_pi.sh` adds a 512 MB swap file on the Zero 2 W.
 
 Goal: when the parts arrive, go from boxes to **live hand-tracking on the projector feed in one
 sitting**, with every software step already done. Everything below is a real command in this

@@ -91,8 +91,29 @@ models:
       "Step6": {technique: fingertip_rubbing,  side: unknown}
       "Step7": {technique: wrist_rubbing,      side: unknown, note: "extension"}
 
-# Optional human-verified side resolution. Fill these in after watching the dataset
-# videos (docs/MODEL_INTEGRATION.md). Keys are "<model>:<native_label>", values are
-# left|right (the hand RECEIVING the action). Until a key is present, the mapping above
-# stays `unresolved` and cannot produce a side-specific validated event.
-side_resolution: {}
+# Human-verified side resolution. Keys are "<model>:<native_label>", values are left|right =
+# the hand RECEIVING the action (the static hand: the one whose back / thumb / wrist is rubbed, or
+# whose palm hosts the other hand's fingertips).
+#
+# Verified 2026-11-14 by viewing mid-clip frames of 4 sessions per folder (001, 009, 017, 024) of
+# the Kaggle set (overhead camera, person at the bottom of the frame, so image-left = person's left):
+#   Step_2_Left  right palm rubs the back of the LEFT hand          -> left receives
+#   Step_4_Left  LEFT fingers' backs in the right palm, interlocked -> left receives
+#   Step_5_Left  right hand clasps the LEFT thumb                   -> left receives
+#   Step_6_Left  right fingertips rub in the LEFT palm              -> left receives (fingertips cleaned are the RIGHT hand's)
+#   Step_7_Left  right hand grips the LEFT wrist                    -> left receives
+#   *_Right mirrors each of these. HandHygiene's ".1/.2" variants are not documented upstream and
+#   that model has fusion weight 0, so they stay unresolved.
+# temporal_v2 has no sides in its labels; its events get a side from detection/side_resolver.py
+# (a geometry model trained on these same clips, 96.5 % held-out frame accuracy).
+side_resolution:
+  "skia:2lt": left
+  "skia:2rt": right
+  "skia:4lt": left
+  "skia:4rt": right
+  "skia:5lt": left
+  "skia:5rt": right
+  "skia:6lt": left
+  "skia:6rt": right
+  "skia:7lt": left
+  "skia:7rt": right

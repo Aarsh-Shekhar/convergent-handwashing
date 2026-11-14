@@ -75,15 +75,21 @@ def test_stars_and_points_milestones(times, stars, points):
     assert s.stars == stars and s.points == points
 
 
-def test_score_freezes_once_finished():
+def test_finished_is_a_milestone_not_a_freeze():
     sc = WashScorer()
     sc.add_events([ev(t, 4.0) for t in STEPS[:5]])
     first = sc.update(50.0)
-    assert first.finished and first.stars == 3
+    assert first.finished and first.stars == 3 and first.finished_at_ts == 50.0
+    # steps done after the wash qualified still count: timers, points and stars keep going up
     sc.add_events([ev("fingertip_rubbing", 5.0), ev("wrist_rubbing", 5.0)])
     later = sc.update(80.0)
-    assert later == first and later.finished_at_ts == 50.0 and later.stars == 3
-    assert sc.final(90.0) == first
+    assert later.finished and later.finished_at_ts == 50.0
+    assert later.steps_done == 7 and later.stars == 5 and later.points > first.points
+    assert {st.technique: st.seconds for st in later.steps}["wrist_rubbing"] == 5.0
+    fin = sc.final(90.0)
+    assert fin.finished and fin.finished_at_ts == 50.0 and fin.stars == 5
+    # nothing ever decreases
+    assert sc.update(95.0).points >= later.points
 
 
 def test_next_step_follows_who_order_and_skips_done_steps():

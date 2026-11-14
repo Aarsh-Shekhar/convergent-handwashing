@@ -1,0 +1,72 @@
+{
+  "model_version": "0.1.0",
+  "feature_version": "side-v1",
+  "classes": [
+    "left",
+    "right"
+  ],
+  "techniques": [
+    "back_of_hand",
+    "backs_of_fingers",
+    "thumb_rubbing",
+    "fingertip_rubbing",
+    "wrist_rubbing"
+  ],
+  "input_dim": 140,
+  "hidden": [
+    128,
+    64
+  ],
+  "epochs": 30,
+  "seed": 0,
+  "camera_convention": "overhead, person at the bottom of the frame (image-left = person's left); set side_resolver.mirrored when the camera faces the user",
+  "label_convention": "side = hand RECEIVING the action (static hand); Kaggle Step_k_Left = left receives, verified on frames 2026-11-14",
+  "training_data": {
+    "source": "/home/claude/convergent-handwashing/data/landmark_sequences",
+    "frames": 44164,
+    "clips": 250,
+    "sessions": 25,
+    "class_balance_right": 0.48473870120460105
+  },
+  "metrics": {
+    "cv": {
+      "folds": 5,
+      "grouped_by": "kaggle session id",
+      "frame_accuracy": 0.965129970111403,
+      "per_technique": {
+        "back_of_hand": {
+          "frame_accuracy": 0.8897140323653292,
+          "clip_majority_accuracy": 0.96,
+          "frames": 9022,
+          "clips": 50
+        },
+        "backs_of_fingers": {
+          "frame_accuracy": 0.9977975878342947,
+          "clip_majority_accuracy": 1.0,
+          "frames": 9535,
+          "clips": 50
+        },
+        "thumb_rubbing": {
+          "frame_accuracy": 0.9774149082812003,
+          "clip_majority_accuracy": 1.0,
+          "frames": 9431,
+          "clips": 50
+        },
+        "fingertip_rubbing": {
+          "frame_accuracy": 0.9890548398130202,
+          "clip_majority_accuracy": 1.0,
+          "frames": 8771,
+          "clips": 50
+        },
+        "wrist_rubbing": {
+          "frame_accuracy": 0.9709655638082377,
+          "clip_majority_accuracy": 1.0,
+          "frames": 7405,
+          "clips": 50
+        }
+      }
+    }
+  },
+  "trained_at": "2026-11-14T02:17:02",
+  "seconds": 36.2
+}

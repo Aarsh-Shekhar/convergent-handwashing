@@ -4,7 +4,7 @@ device_id: pi-faucet-01
 width: 640
 height: 480
 fps: 15.0
-jpeg_quality: 80
+jpeg_quality: 70        # Zero 2 W on 2.4 GHz Wi-Fi: 640x480 @ 15 fps at q70 is ~0.3 MB/s; raise to 80 on 5 GHz / Pi 3 A+
 send_queue: 2
 status_interval_s: 2.0
 renderer: auto        # framebuffer on the Pi (/dev/fb0), image elsewhere

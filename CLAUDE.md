@@ -50,7 +50,7 @@ Every run with `--save-results` writes `runs/<session_id>/summary.json`, `events
 
 Why it replaced the v1 LSTM: on Andrew's webcam the LSTM only said "palm to palm" when the tracker lost a hand (98 to 99% of its palm predictions), and the label flickered about 200 times a minute.
 
-- **Classes:** the 7 techniques plus `none` (not washing). No left/right. The coverage work will get the side from hand geometry.
+- **Classes:** the 7 techniques plus `none` (not washing). No left/right. The side comes from `detection/side_resolver.py` (2026-11-14): an MLP on label-free hand geometry, 96.5% held-out frame accuracy on Kaggle, sets `GestureEvent.side` for sided events.
 - **Features** (`detection/pair_features.py`, 183 values per frame): each hand described in its own frame (position, size and in-plane rotation removed), its motion, and the other hand seen from it.
 - **Hand slots:** by position continuity (`HandSlotter`), not by MediaPipe's left/right guess. Hands without a resolved side are used too.
 - **Window:** the last 48 frames (3.2 s). Frames without hands stay in as empty frames, so a dropout costs no warm-up. It answers after 8 frames with a hand and keeps answering for 0.35 s after the hands vanish.
@@ -101,7 +101,7 @@ Tooling note: long training runs started in the background of a Claude session s
 
 ### Technique names
 
-`palm_to_palm`, `back_of_hand`, `interlaced_fingers`, `backs_of_fingers`, `thumb_rubbing`, `fingertip_rubbing` (the 6 WHO core techniques) and `wrist_rubbing` (WHO step 7, an extension). `configs/labels.yaml` still has `side_resolution: {}`, so every sided technique is "unresolved".
+`palm_to_palm`, `back_of_hand`, `interlaced_fingers`, `backs_of_fingers`, `thumb_rubbing`, `fingertip_rubbing` (the 6 WHO core techniques) and `wrist_rubbing` (WHO step 7, an extension). `configs/labels.yaml: side_resolution` is filled (verified on Kaggle frames 2026-11-14: `*_Left` = the left hand receives). Side = receiving (static) hand.
 
 ## Wash score (built 2026-11-10)
 
@@ -124,7 +124,7 @@ Tooling note: long training runs started in the background of a Claude session s
   | 4 | Finished with 6 steps |
   | 5 | Finished with all 7 steps |
 
-- **Freeze:** once finished, the score is frozen. The camera and recognition keep running.
+- **Finished is a milestone (2026-11-14):** `finished_at_ts` is kept, timers/points/stars keep accruing so late steps still earn 4-5 stars.
 
 Where the score shows up:
 
@@ -150,10 +150,10 @@ Sample clip result: 4 of 7 steps found (no palm, thumb or wrist), 49.6 s total, 
 ## Known limits (state these honestly)
 
 - The score and coverage measure recognized motion time. They are not proof of clean hands, soap contact or microbial removal. Foam/soap detection is experimental.
-- Region coverage tops out at about 0.4 today, because thumb, fingertip and back-of-hand credit need the left/right side mapping. Fill `labels.yaml: side_resolution` only after watching dataset clips. Never guess it to make numbers rise.
+- Region coverage needs resolved sides; the side resolver provides them (sample clip: 0.40 -> 0.6). Its accuracy on our camera is unmeasured; `side_resolver.mirrored` must match the mount.
 - Recognition accuracy has only been measured on public top-down sink videos of adults (METC, Kaggle). It has not been measured on Andrew's webcam, the faucet camera or children's hands. Passing tests is software verification, not real-world accuracy.
 - One pipeline run is one session. There is no automatic per-child session lifecycle and no child identity in the schema. `WashScorer.reset()` is ready for future lifecycle work.
-- `docs/GAMIFICATION_HANDOFF.md` mentions `live` WebSocket messages, but nothing publishes them yet. In-process `Pipeline.on_frame` is the only live feed.
+- `live` WebSocket messages are published since 2026-11-14 (`POST /api/v1/sessions/{id}/live` -> `/ws/v1/observations`, 5 Hz + every event). `Pipeline.on_frame` remains the in-process feed.
 
 ## Hardware (planned, not arrived)
 
@@ -174,7 +174,7 @@ Pi docs and runbooks (`docs/PI_SETUP.md`, `docs/HARDWARE_DAY_RUNBOOK.md`) still 
 2. Build a one-motion game demo (germ, instruction, celebration) on top of `WashScore`. Don't re-implement validation in the game layer.
 3. Coaching state machine, session lifecycle (hands arrive or leave), basic XP that does not reward washing extra times.
 4. Parent/admin frontend and child-profile pairing. React + Vite and Supabase have been proposed but not installed.
-5. Resolve the native label sides, then hardware testing on the Zero 2 W and recording 10 to 20 team washes for evaluation and retraining.
+5. Hardware testing on the Zero 2 W and recording 10 to 20 team washes for evaluation and retraining (label sides are resolved).
 
 ## How we work
 

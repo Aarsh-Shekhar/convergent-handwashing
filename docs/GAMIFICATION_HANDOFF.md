@@ -11,7 +11,25 @@ in-process via `Pipeline.on_frame`). Messages:
 |---|---|---|
 | `gesture_event` | `GestureEvent` | a technique was **validated** (`validation_status`), with `technique`, `side` (`left/right/both/unresolved/unknown`), `side_resolved`, `start_ts`, `end_ts`, `validated_duration_s`, `confidence`, `quality`, supporting model versions |
 | `device_status` | `DeviceStatus` | Pi health (camera ok, display ok, fps, drops, under-voltage) |
-| `live` (pipeline-published) | free-form | e.g. fused label per frame, active candidate (`ProgressState.active_candidate`) |
+| `live` | see below | published by the pipeline at `backend.live_hz` (5 Hz) and on every new event: fused label, active candidate, `WashScore`, and `ProgressState` when it was refreshed. **This is the feed to drive the game from.** |
+
+`live` message body (fields besides `type`/`seq`/`session_id`):
+
+```json
+{"ts": 12.5, "frame_id": 187, "hands": 2,
+ "fused": {"status": "valid", "technique": "thumb_rubbing", "side": "left", "confidence": 0.91},
+ "active": {"technique": "thumb_rubbing", "side": "left", "start_ts": 10.0, "supported_s": 2.4, "validated": true},
+ "score": { "...WashScore, see below..." },
+ "progress": null}
+```
+`active` is the step the child is doing *right now* (before it is validated); `fused.technique`
+is the model's answer for this frame; `score.steps[*].seconds` are the per-step timers. Subscribe
+to `ws://<laptop>:8000/ws/v1/observations` (read-only needs no token when
+`allow_unauthenticated_reads` is on). Reference client: `tests/integration/test_backend_api.py::test_live_endpoint_fans_out_to_observation_subscribers`.
+
+Sides: `side` is `left`/`right` = the hand **receiving** the technique (the static hand), set by the
+side resolver (`docs/TEST_RESULTS.md` §9); `both` for palm-to-palm and interlaced fingers;
+`unresolved` only when the resolver was unsure (then no hand-specific region credit is given).
 
 Per-frame structures available in-process: `TrackedHands` (where the hands are),
 `ModelPrediction` (fused, with `extras.participating`), `ProjectionTarget[]` (where to draw).
@@ -70,7 +88,9 @@ Rules (all in `configs/development.yaml: scoring.*`):
 * Points (0 to 100): up to 10 per step with partial credit, plus up to 30 for total time (capped at 20 s).
 * Stars: 0 nothing recognized, 1 some washing, 2 three steps or 10 s, 3 finished,
   4 finished with 6 steps, 5 finished with all 7.
-* Once `finished` is true the score is frozen. Recognition and events keep running, the score stops changing.
+* `finished` is a milestone, not a freeze: `finished_at_ts` keeps the first time the wash
+  qualified, and timers, points and stars keep going up afterwards (never down), so steps done
+  after the 20 s mark still earn the 4th and 5th star.
 * If a run ends before finishing, the saved score uses released events only (the same record as
   `/events`). It can be a fraction of a second below the last live value.
 

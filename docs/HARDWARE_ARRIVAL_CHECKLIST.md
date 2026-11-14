@@ -1,4 +1,4 @@
-# Hardware arrival checklist (Pi 3 A+, Arducam B0176, RIF6 Cube)
+# Hardware arrival checklist (Pi Zero 2 W (or 3 A+), Arducam B0176, RIF6 Cube)
 
 The short version with exact commands is `docs/HARDWARE_DAY_RUNBOOK.md`. This is the full
 tick-list; record results in `docs/TEST_RESULTS.md` (section "Hardware").
@@ -8,7 +8,7 @@ tick-list; record results in `docs/TEST_RESULTS.md` (section "Hardware").
 - [ ] `.venv/bin/python -m convergent.cli models` shows `handhygiene` and `skia_temporal` loaded.
 - [ ] `bash START_LAPTOP.command` + `convergent pi-emulator` round trip works on the laptop (frames received, events, renders in `runs/pi_emulator_renders`).
 
-## B. Raspberry Pi 3 A+
+## B. Raspberry Pi Zero 2 W (or 3 A+)
 - [ ] Flash Raspberry Pi OS Lite 64-bit (docs/PI_SETUP.md §1); SSH works over Wi-Fi.
 - [ ] `bash scripts/pi/install_pi.sh <LAPTOP_IP> <DEVICE_TOKEN>` finished (`setup_pi_log.txt`), rebooted once, `systemctl status convergent-agent` is active.
 - [ ] Power from the onn. 10,000 mAh bank: `vcgencmd get_throttled` stays `0x0` under load (camera + Wi-Fi). If under-voltage flags appear, change cable/bank before blaming software.

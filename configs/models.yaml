@@ -55,6 +55,30 @@ artifacts:
       model.pt is loaded with weights_only=True. Re-training: scripts/extract_landmark_sequences.py then
       scripts/sweep_lstm.py (installs the winner here). The S-Kia CSVs cannot be used: they contain no recording
       boundaries and their frame order is string-sorted.
+  temporal_v2:
+    name: Hand-relative temporal convolution network (7 techniques + none), trained by scripts/train_temporal_v2.py
+    path: models/temporal_v2/current
+    kind: torch_artifact_dir
+    upstream: ""
+    trusted_sha256:
+      - f33fdd0d7fd90f959b61507113882e6f9d85c7125bc72f4b868dbb3f785349fe   # installed 2026-11-12 (METC + Kaggle + own rounds, fine-tuned); docs/TEST_RESULTS.md sections 7-8
+    preprocessing_version: pair-v1
+    label_map: temporal_v2
+    notes: >-
+      The deciding recognition model (fusion weight 1.0). meta.json carries classes, window, split and metrics.
+  side_resolver:
+    name: Which hand receives a sided technique (MLP on label-free hand geometry), trained by scripts/train_side_resolver.py
+    path: models/side_resolver/current
+    kind: torch_artifact_dir
+    upstream: ""
+    trusted_sha256:
+      - 939ac2618bf7fb15a4eeb2c9e500608abca7ca3b7a219305c635f3a86ea5524b   # v0.1.0 (2026-11-14): Kaggle sided clips, 96.5 % held-out frame accuracy, 96-100 % per clip
+    preprocessing_version: side-v1
+    label_map: ""
+    notes: >-
+      Sets GestureEvent.side for temporal_v2 events (which carry no side) so region evidence can be attributed
+      to a hand. Convention: side = receiving (static) hand; camera overhead with the user at the bottom of the
+      frame, set side_resolver.mirrored when the camera faces the user. docs/TEST_RESULTS.md section 9.
   yolo:
     name: YOLOv5s handwashing detector (7 classes Step1..Step7)
     path: models/yolo/handwash_yolov5.pt

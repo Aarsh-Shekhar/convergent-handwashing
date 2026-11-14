@@ -24,7 +24,9 @@ Rules (``ScoringConfig``):
 * stars: 0 nothing recognized, 1 some washing, 2 ``two_star_steps`` steps or
   ``two_star_total_s`` seconds, 3 finished, 4 finished with more than ``steps_required``
   steps, 5 finished with every step;
-* once finished, the score is frozen. Recognition keeps running, the score stops changing.
+* ``finished`` is a milestone, not a freeze: ``finished_at_ts`` keeps the first time the wash
+  qualified, but timers, points and stars keep accruing afterwards (they can only go up), so a
+  child who does the 6th and 7th step after the 20 s mark still earns 4 or 5 stars.
 
 This is a score of recognized motion time. It is not a measurement of clean hands, soap
 contact or surface coverage.
@@ -79,13 +81,13 @@ class WashScorer:
         self._released: dict[str, float] = {t: 0.0 for t in self._steps}
         self._shown: dict[str, float] = {t: 0.0 for t in self._steps}
         self._seen: set[str] = set()
-        self._frozen: WashScore | None = None
+        self._finished_at: float | None = None
         self._last_end = float("-inf")  # end of the latest credited time
         self._backfilled: set[tuple[str, float]] = set()
 
     @property
     def finished(self) -> bool:
-        return self._frozen is not None
+        return self._finished_at is not None
 
     def add_events(self, events: Iterable[GestureEvent]) -> None:
         """Add released (finalized) events. Rejected events and unscored techniques are ignored."""
@@ -99,9 +101,7 @@ class WashScorer:
             self._last_end = max(self._last_end, ev.end_ts)
 
     def update(self, ts: float, active: Candidate | None = None, pending: GestureEvent | None = None) -> WashScore:
-        """Live score for this frame. Returns the frozen score once the wash is finished."""
-        if self._frozen is not None:
-            return self._frozen
+        """Live score for this frame. Never decreases; keeps growing after the wash is finished."""
         pend_ok = pending is not None and pending.validation_status == ValidationStatus.VALIDATED and pending.technique in self._released
         act_ok = active is not None and active.validated and active.technique in self._released
         if act_ok and (active.technique, active.start_ts) not in self._backfilled:  # type: ignore[union-attr]
@@ -121,12 +121,11 @@ class WashScorer:
     def final(self, ts: float) -> WashScore:
         """Score to save at the end of a run (call after the event detector is flushed).
 
-        If the wash finished, this is the frozen score. Otherwise it is computed from released
-        events only, which is the same record the backend stores.
+        Computed from released events only (plus any backfill already credited), which is the
+        same record the backend stores; ``finished_at_ts`` is kept from the live run.
         """
-        if self._frozen is not None:
-            return self._frozen
-        return self._score(ts, self._released)
+        return self._score(ts, {t: max(self._released[t], 0.0) for t in self._steps} if not self._shown else
+                           {t: max(self._released[t], min(self._shown[t], self._released[t] + self.cfg.backfill_s)) for t in self._steps})
 
     # ---- internals
     def _score(self, ts: float, secs: dict[str, float]) -> WashScore:
@@ -143,15 +142,14 @@ class WashScorer:
         points += c.time_points * (min(total / c.total_min_s, 1.0) if c.total_min_s > 0 else 1.0)
         steps_done = sum(1 for st in steps if st.done)
         finished = steps_done >= c.steps_required and total + _EPS >= c.total_min_s
-        score = WashScore(
+        if finished and self._finished_at is None:
+            self._finished_at = ts
+        return WashScore(
             session_id=self.session_id, timestamp=ts, steps=steps, steps_done=steps_done, steps_required=c.steps_required,
-            step_min_s=c.step_min_s, total_s=round(total, 3), total_min_s=c.total_min_s, finished=finished,
-            finished_at_ts=ts if finished else None, next_step=next((st.technique for st in steps if not st.done), None),
-            points=int(round(points)), stars=self._stars(total, steps_done, finished),
+            step_min_s=c.step_min_s, total_s=round(total, 3), total_min_s=c.total_min_s, finished=finished or self._finished_at is not None,
+            finished_at_ts=self._finished_at, next_step=next((st.technique for st in steps if not st.done), None),
+            points=int(round(points)), stars=self._stars(total, steps_done, finished or self._finished_at is not None),
         )
-        if finished:
-            self._frozen = score
-        return score
 
     def _stars(self, total: float, steps_done: int, finished: bool) -> int:
         c = self.cfg

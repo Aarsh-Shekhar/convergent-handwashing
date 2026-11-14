@@ -35,6 +35,12 @@ temporal_v2:               # hand-relative temporal model (7 techniques + "none"
   unknown_threshold: 0.4
   smooth_s: 0.0            # probability smoothing time constant (s); 0 = off. Off since 2026-11-12: saves ~0.35 s of lag, label changes/min 25 -> 60 on own round down3
   hold_s: 0.35             # keep answering through tracking dropouts up to this long
+side_resolver:             # which hand receives a sided technique (detection/side_resolver.py); artifact trained on Kaggle, see docs/TEST_RESULTS.md section 9
+  enabled: true
+  artifact_dir: models/side_resolver/current
+  mirrored: false          # set true when the camera faces the user (image-left = user's right hand)
+  min_frames: 6
+  margin: 0.15
 fusion:
   method: reliability_weighted
   # Weights re-derived 2026-11-11 on held-out METC subjects through the full pipeline

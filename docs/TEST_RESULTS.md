@@ -286,3 +286,72 @@ Installed model: trained on all 3 rounds (no own test round left), so its own-ca
 expected to be around the held-out numbers above, not higher. Held-out METC window accuracy stays
 0.80, Kaggle 0.98. The sample clip still gives six in-order events with thumb absent.
 
+
+## 9. Side resolver and model v1.0 freeze (2026-11-14)
+
+**Side semantics resolved from the data.** Mid-clip frames of four sessions per Kaggle folder
+(`Step_{2,4,5,6,7}_{Left,Right}`, sessions 001/009/017/024) were viewed: in every `*_Left` clip the
+LEFT hand is the static, receiving hand (its back / thumb / wrist is rubbed, or its palm hosts the
+right hand's fingertips). `configs/labels.yaml: side_resolution` is now filled for the S-Kia labels
+and the region mapping for fingertip rubbing credits the fingertips of the *acting* hand.
+
+**MediaPipe handedness is unusable for this.** On the sided Kaggle clips, the single visible hand
+carried the "acting" MediaPipe label 62 % (step 2), 22 % (4), 8 % (5), 60 % (6), 100 % (7) of the
+time: a per-technique coin flip, because a hand seen palm-down over another looks like the other
+hand mirrored. `temporal_v2` therefore rightly ignores it, but then had no side at all.
+
+**Side resolver** (`detection/side_resolver.py`, `scripts/train_side_resolver.py`): an MLP
+(140 → 128 → 64 → 2) on label-free geometry – the visible hands sorted by image x, each relative to
+its own wrist and hand size, the wrist offset between the two when both are visible, the hand
+count and the technique – predicts P(receiving hand = right). 44,164 frames / 250 clips / 25
+sessions, 5-fold cross-validation grouped by session:
+
+| Technique | Frame accuracy | Per-clip majority | Clips |
+|---|---|---|---|
+| back_of_hand | 0.890 | 0.960 | 50 |
+| backs_of_fingers | 0.998 | 1.000 | 50 |
+| thumb_rubbing | 0.977 | 1.000 | 50 |
+| fingertip_rubbing | 0.989 | 1.000 | 50 |
+| wrist_rubbing | 0.971 | 1.000 | 50 |
+| **all** | **0.965** | | 250 |
+
+A gradient-boosting model scored the same (0.960); the MLP ships because it is a 108 KB
+`state_dict` loaded with `weights_only=True`, no pickles. The pipeline averages the per-frame
+probability over the frames of each validated sided event and assigns the side when at least 6
+frames were scored and the mean is ≥ 0.15 from 0.5; otherwise the event stays `unresolved`.
+Camera convention is Kaggle's (overhead, user at the bottom of the frame); `side_resolver.mirrored:
+true` flips it for a camera that faces the user. Caveat: trained on one camera family; re-check
+on our rig (the same `--rounds` benchmark reports it).
+
+**Region evidence visibility.** Evidence for a sided event is now gated on the pair's best
+visibility over the event (median), not on the receiving hand's own label-based visibility – the
+receiving hand is under the acting hand by definition, so the old rule marked every such cell
+"partial". Symmetric techniques keep per-hand visibility.
+
+**Wash score.** `finished` is a milestone, not a freeze: `finished_at_ts` is kept, timers / points /
+stars keep accruing (monotonically), so a 6th or 7th step after the 20 s mark still earns 4-5 stars.
+On the sample clip the step list previously showed fingertips 3.0 s / wrist 0.0 s at the moment
+of finishing although 9.4 s and 5.5 s were recognised.
+
+**Live feed.** `POST /api/v1/sessions/{id}/live` fans a `live` message (fused label, active
+candidate, score, progress) out on `/ws/v1/observations`; the pipeline posts it at
+`backend.live_hz` (5 Hz) and on every new event. Nothing is stored. Integration-tested with a
+real WebSocket subscriber.
+
+**Sample clip, end to end (acceptance test `tests/acceptance`, `make accept`, 53 s):**
+
+| | before (2026-11-13) | now |
+|---|---|---|
+| Validated events | 6 in WHO order, thumb absent | same |
+| Sides of the 4 sided events | `unresolved` | `left` (matches the footage) |
+| Region cells with sufficient evidence | 4 / 10 (coverage 0.40) | 6 / 10 (coverage ≥ 0.55; thumbs unknown because the step is missing, one back-of-hand and one fingertips cell unknown because only one side was washed) |
+| Wash score | 3★ / 80, step timers frozen at 76.6 s | 3★ / 80, `finished_at` 76.6 s, timers complete (fingertips 9.4 s, wrist 5.5 s) |
+
+Test-suite: 172 passed (unit + integration + regression + acceptance) on Linux; the acceptance
+module is marked `slow` + `mediapipe`. The replay regression fingerprints were re-recorded (the
+model set now includes the side resolver and events carry sides); the `tasks` (macOS) fingerprint
+is re-created by the first macOS test run and should be committed then.
+
+**Model v1.0 is frozen as of this commit**: `temporal_v2` (sha256 `f33fdd0d…`), `side_resolver`
+v0.1.0 (sha256 `939ac261…`), the thresholds in `configs/development.yaml` and the acceptance test
+above. Changing any of them means re-agreeing the known answer in `tests/acceptance`.

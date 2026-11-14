@@ -2,13 +2,12 @@
 
 Computer-vision foundation for a faucet-mounted, projector-guided handwashing trainer for
 children (Texas Convergent). One executable pipeline: camera frames → shared MediaPipe hand
-tracking → recognition branches (HandHygiene spatial classifier, corrected temporal LSTM trained
-on the Kaggle hand-wash dataset, optional YOLOv5 detector) → timestamp-aware fusion → temporal
-validation → anatomical region evidence → projector coordinates → backend persistence →
-(future) game engine.
+tracking → `temporal_v2` technique model (ours; METC + Kaggle + own rounds) → side resolver
+(which hand is being washed) → temporal validation → anatomical region evidence → wash score →
+projector coordinates → backend persistence + live WebSocket feed → (next) game engine.
 
 ```
-Arducam B0176 ──CSI──▶ Raspberry Pi 3 A+ ──Wi-Fi (JPEG/WebSocket)──▶ Laptop (CV, fusion, backend)
+Arducam B0176 ──CSI──▶ Raspberry Pi Zero 2 W (or 3 A+) ──Wi-Fi (JPEG/WebSocket)──▶ Laptop (CV, fusion, backend)
                                    ▲                                      │
                            HDMI ◀──┘ ◀──── render/debug commands ─────────┘
                            RIF6 Cube (854×480 logical canvas)
@@ -50,7 +49,8 @@ Windows: use WSL2 and the Linux commands. Everything is logged; if a step fails,
 | **See it run without hardware** | terminal 1 `bash START_LAPTOP.command`; terminal 2 `.venv/bin/python -m convergent.cli pi-emulator --video data/samples/handwashing_missing_step.mp4 --max-frames 300` |
 | **Run the pipeline on a video** | `.venv/bin/python -m convergent.cli replay --video <mp4> --save-results --backend inprocess` → `runs/<session>/` |
 | **Check which models are loaded** | `.venv/bin/python -m convergent.cli models` |
-| **Retrain the temporal model** (Kaggle set or our own clips in the same `Step_*/` layout) | `scripts/extract_landmark_sequences.py --root data/HandWashDataset --out data/landmark_sequences` then `scripts/sweep_lstm.py --data data/landmark_sequences` (installs the winner to `models/skia_temporal/current`) – see `docs/MODEL_INTEGRATION.md` |
+| **Record our own clips / retrain** | `convergent record` (see `docs/RECORDING_GUIDE.md`) → `scripts/extract_landmarks_v2.py` → `scripts/train_temporal_v2.py --install` → `scripts/benchmark_recognition.py --rounds <held-out>`; side resolver: `scripts/train_side_resolver.py` |
+| **Check the model still gives the known answer** | `make accept` (1 min) |
 | **Evaluate / ablate branches on a labelled video** | `scripts/evaluate_models.py --config configs/evaluation.yaml --video <mp4> --reference <json> --ablation --out runs/evaluation.json` |
 | **Build the game layer** | `docs/GAMIFICATION_HANDOFF.md`, `docs/API.md` (REST + WebSocket contracts) |
 | **See what's done and what's left** | `docs/TEAM_HANDOFF.md` |
@@ -70,27 +70,34 @@ Every command below is real (`.venv/bin/python -m convergent.cli --help`):
 | Projection calibration | `.venv/bin/python -m convergent.cli calibrate synthetic` · `… calibrate pattern --kind chessboard` · `… calibrate from-images --images cam1.jpg …` · `… calibrate from-pairs --pairs pairs.json --image-size 640 480` |
 | Model evaluation (with ablation) | `.venv/bin/python scripts/evaluate_models.py --config configs/evaluation.yaml --video <mp4> --reference <json> --ablation --out runs/evaluation.json` |
 | Train the recognition model the pipeline uses (`temporal_v2`) | `scripts/extract_landmarks_v2.py` → `scripts/train_temporal_v2.py --install` → `scripts/benchmark_recognition.py` (see `docs/MODEL_INTEGRATION.md`, results in `docs/TEST_RESULTS.md` §7) |
-| Train / sweep the temporal LSTM | `scripts/extract_landmark_sequences.py` → `scripts/sweep_lstm.py` (or a single `scripts/train_lstm.py --data … --out models/skia_temporal/<version>`) |
+| Train the technique model / side resolver | `scripts/train_temporal_v2.py` (see `CLAUDE.md` commands) · `scripts/train_side_resolver.py` · legacy v1 LSTM: `scripts/sweep_lstm.py` |
 | Train YOLO (optional branch, GPU recommended) | `.venv/bin/python scripts/train_yolo.py --dataset <HandWashDataset_yoloFormat> --epochs 100 --out runs/yolo_handwash` |
 | Artifact status | `.venv/bin/python -m convergent.cli models` |
 | All tests / lint | `make test` · `make lint` |
 
 ## What is in the box (status at a glance)
 
-* ✅ Laptop pipeline, backend, Pi agent + emulator, calibration tools, 119 automated tests – all
-  executed (`docs/TEST_RESULTS.md`).
-* ✅ **Temporal model trained on real data**: `models/skia_temporal/current` is the corrected LSTM
-  trained on the 300 Kaggle hand-wash videos with a subject-grouped split and training-time
-  augmentation; held-out metrics are in `models/skia_temporal/current/meta.json` and
-  `docs/TEST_RESULTS.md` §3. It loads automatically (`configs/development.yaml:
-  skia.temporal_artifact_dir`).
-* ✅ HandHygiene RandomForest converted to a dependency-free `numpy-forest` artifact (exact match).
-* 🔧 Pi 3 A+, Arducam B0176 and RIF6 specifics are implemented against the documented
-  interfaces but **unverified on hardware** – `docs/HARDWARE_DAY_RUNBOOK.md` §3 lists the checks.
-* 🟡 YOLO branch has no usable weights (optional; reports `MODEL_UNAVAILABLE`, never fakes output).
-* 🟡 Fusion weights are set from the held-out evidence we have (temporal 1.0, HandHygiene 0.4);
-  calibrators are identity until recordings from **our** camera exist (`docs/HARDWARE_DAY_RUNBOOK.md`
-  §4 says how to collect them).
+**Model v1.0 is frozen (2026-11-14)** – `docs/MODEL_CARD.md` is the one-page summary.
+
+* ✅ `temporal_v2` (2.2 MB TCN, hand-relative features, 7 techniques + "not washing"): 79 % window
+  accuracy on never-seen METC people, **70 % of performed seconds credited to the right step
+  through the full pipeline** (previous models: 7 %), 24 label changes/min instead of 248.
+* ✅ Side resolver (108 KB MLP): which hand is receiving a one-sided technique, **96.5 %** on
+  never-seen Kaggle sessions. Left/right label semantics verified on the footage. Region coverage
+  on the sample clip 0.40 → 0.60.
+* ✅ Wash score: per-step timers that start ~1 s after a step begins, 0–100 points, 0–5 stars,
+  `finished` milestone; `live` WebSocket feed at 5 Hz for the game layer (`docs/GAMIFICATION_HANDOFF.md`).
+* ✅ Acceptance test (`make accept`): the full sample clip must give 6 events in WHO order, thumb
+  missing, correct sides, ≥ 3 stars. 172 tests in total, pass on Linux and macOS (M3, M5 Pro).
+* ✅ Laptop pipeline, backend (REST + WebSocket), Pi agent + emulator, calibration tools, one-shot
+  setup scripts for Mac and Pi, recording/benchmark/training scripts.
+* 🔧 Pi Zero 2 W, Arducam B0176 and RIF6 specifics are implemented against the documented
+  interfaces but **unverified on hardware** – `docs/HARDWARE_DAY_RUNBOOK.md`.
+* 🟡 Accuracy on **our** camera and on children is unmeasured (all training data is adults at
+  overhead sink cameras; 2 own webcam rounds moved held-out accuracy 24 % → 59 %). Recording
+  more people on the real mount is the next model task (`docs/RECORDING_GUIDE.md`).
+* 🟡 Older branches (HandHygiene RF, v1 LSTM) still load and are logged with fusion weight 0;
+  YOLO has no weights (optional).
 
 Full detail: `IMPLEMENTATION_STATUS.md`.
 
@@ -114,10 +121,10 @@ src/convergent/
 scripts/         extract_landmark_sequences.py, train_lstm.py, sweep_lstm.py, train_yolo.py, train_handhygiene.py,
                  convert_handhygiene_rf.py, evaluate_models.py, calibrate_projector.py, replay_video.py, fetch_models.py, fetch_yolov5.sh
 configs/         development.yaml, evaluation.yaml, models.yaml, labels.yaml, projector.yaml, pi_agent.yaml
-models/          handhygiene/ (committed numpy-forest), skia_temporal/current (committed trained LSTM), skia_legacy/, yolo/
+models/          temporal_v2/current + side_resolver/current (committed, the v1.0 stack), handhygiene/, skia_temporal/current (legacy v1), yolo/
 data/            samples/ (sample video), fixtures/ (reference labels), HandWashDataset/ + landmark_sequences/ (not committed; see docs/MODEL_INTEGRATION.md)
 tests/           unit/ integration/ regression/
-docs/            TEAM_HANDOFF.md, HARDWARE_DAY_RUNBOOK.md, HARDWARE_ARRIVAL_CHECKLIST.md, PI_SETUP.md, API.md, MODEL_INTEGRATION.md,
+docs/            MODEL_CARD.md, TEAM_HANDOFF.md, HARDWARE_DAY_RUNBOOK.md, RECORDING_GUIDE.md, HARDWARE_ARRIVAL_CHECKLIST.md, PI_SETUP.md, API.md, MODEL_INTEGRATION.md,
                  CALIBRATION.md, TEST_RESULTS.md, GAMIFICATION_HANDOFF.md
 ```
 

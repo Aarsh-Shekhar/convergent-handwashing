@@ -1,11 +1,11 @@
 # Implementation status (progress file – keep current)
 
-Last updated: 2026-11-07 (evening: temporal model trained on the Kaggle dataset). Verification
+Last updated: 2026-11-14 (model v1.0 frozen: temporal_v2 + side resolver + wash score + live feed; `docs/MODEL_CARD.md`). 2026-11-07: v1 LSTM trained on Kaggle. Verification
 environment: Linux x86_64 container, Python 3.11.14 (uv), CPU only (2 cores). macOS install is
 verified on a MacBook (Apple M3, macOS 26.5, `SETUP_MAC.command`): uv sync, cv2 4.11 / mediapipe 0.10.21 /
 torch 2.6.0 arm64 wheels, MediaPipe `tasks` bundle downloaded, 119 tests pass (the replay regression
 fingerprint is per MediaPipe backend: `solutions` on Linux without the bundle, `tasks` on the Mac).
-Hardware (Pi 3 A+, Arducam B0176, RIF6) has **not** arrived: everything Pi/projector-specific is
+Hardware (Pi Zero 2 W (or 3 A+), Arducam B0176, RIF6) has **not** arrived: everything Pi/projector-specific is
 "implemented, awaiting hardware"; `docs/HARDWARE_DAY_RUNBOOK.md` + `START_LAPTOP.command` +
 `scripts/pi/install_pi.sh` are the bring-up path.
 
@@ -18,6 +18,8 @@ Legend: ✅ implemented & tested here · 🟡 implemented, awaiting model artifa
 | 2 Video ingestion & replay | `FrameSource` abstraction: MP4 (PTS timestamps), webcam, network (Pi), synthetic; PTS-based decimation; latest-frame bounded queue with drop counters; out-of-order rejection; device gateway + Pi camera agent + local emulator | ✅ (webcam path not exercised – no camera in the container) | `test_sources.py` (11): deterministic double replay, decimation, queue drops, reconnect; `tests/integration/test_pi_transport.py` (4): emulator→gateway frames, status, render ack, reconnect after gateway restart, auth rejection |
 | 3 Shared hand tracking | `HandTracker` with MediaPipe `tasks` or bundled `solutions` backend, swap-based anatomical handedness, Hungarian track association + handedness voting + uniqueness, visibility states, diagnostic overlay | ✅ | `test_hand_tracking.py` (9): single/two hands, order independence, flips, crossing, duplicates, gaps; `test_mediapipe_real.py` (2): two-hand detection on the sample video, mirroring/handedness convention |
 | 4 Landmark classifiers | HandHygiene adapter (exact right→left centroid features, `RestrictedUnpickler`, **validated numpy-forest conversion of the sklearn-1.0.2 RandomForest**: 18,262/18,262 rows identical `predict_proba`); S-Kia legacy adapter (Keras checkpoint, loads with TF 2.18/Keras 3.15, reproduces 200/200 in-sample rows); **corrected temporal LSTM trained on the 300 Kaggle videos** (PyTorch; contiguous windows that skip hand-less frames exactly like the online buffer; session-grouped split; train-only scaler with std floor; class-balanced loss; training-time augmentation; versioned artifact at `models/skia_temporal/current`, committed) + `scripts/extract_landmark_sequences.py`, `train_lstm.py`, `sweep_lstm.py`, `crossval_lstm.py` | ✅ code + ✅ real artifact (metrics: docs/TEST_RESULTS.md §3) · 🟡 accuracy on **our** camera unmeasured | `test_labels_and_adapters.py` (24) incl. feature-ordering proofs, unsupported/dangerous checkpoints, augmentation invariants, buffer/trainer window equivalence, scaler floor, synthetic train→load→infer |
+| 4a temporal_v2 | Hand-relative TCN (Andrew, 2026-11-11): METC + Kaggle + own rounds, calibrated, fusion weight 1.0; recording, training, fine-tuning and pipeline-benchmark scripts | ✅ code + ✅ artifact (docs/TEST_RESULTS.md §7-8) · 🟡 our camera unmeasured | `test_pair_model.py` (incl. feature invariances), pipeline e2e |
+| 4b Side resolver + score + live | Side resolver MLP on label-free geometry (96.5 % held-out), verified label semantics, fingertip region mapping fix, pair-visibility gating; wash score milestone semantics; `live` WebSocket feed; acceptance test | ✅ (docs/TEST_RESULTS.md §9) | `test_side_resolver.py` (7), `test_wash_score.py` (21), `test_backend_api.py` live test, `tests/acceptance` (3) |
 | 5 YOLO branch | `YoloAdapter`: hash-allow-listed loading via pinned yolov5 v7.0 `DetectMultiBackend`, own letterbox/decode/NMS/rescale, `Step1..7` mapping, `MODEL_UNAVAILABLE` when absent; `scripts/train_yolo.py` + `fetch_yolov5.sh` | ✅ code · 🟡 no upstream weights. A **1-epoch smoke checkpoint** (`models/yolo/smoke_1epoch_last.pt`, mAP@.5 ≈ 0.07, NOT a usable detector) was trained here to prove the train→load→infer path | unit tests (4) + manual run (docs/TEST_RESULTS.md) |
 | 6 Fusion & temporal validation | timestamp-aware aligner, reliability-weighted fusion over canonical keys with renormalisation over participating branches, contradiction detection, unknown rejection, per-branch calibrators (temperature/histogram), meta-classifier interface (out-of-sample guard); hysteresis/min-duration/gap/pause-resume validator; merge + duplicate suppression; evaluation (frame, event P/R, false completion, missing steps, latency, resources, ablation) | ✅ · fusion weights set from held-out evidence (temporal 1.0, HandHygiene 0.4, legacy 0.3; `configs/development.yaml`), calibrators still identity | `test_fusion_temporal.py` (19) |
 | 7 Region evidence | landmark geometry (orientation, palm/back/thumb/fingers/fingertips polygons, palm-facing heuristic), technique→region mapping with acting/receiving hand, visibility-weighted accumulation, unresolved-side evidence kept unattributed, typed `ProgressState` with explicit `coverage_estimate` definition, replaceable segmentation interface, experimental foam proxy (flagged unvalidated) | ✅ | `test_regions_projection.py` (regions part, 5) |
@@ -40,7 +42,7 @@ Legend: ✅ implemented & tested here · 🟡 implemented, awaiting model artifa
   adults, and MediaPipe sees only one of the two overlapping hands in ~97 % of their frames.
 * **YOLO**: no usable detector; the smoke checkpoint only proves the path.
 * **Fusion weights / calibrators**: weights chosen from independent held-out evidence, not fitted; calibrators identity. On the sample video the weighted two-branch fusion gives event P 0.50 / R 0.67 and names the correct missing step, but frame accuracy 0.43 vs 0.47 for the temporal branch alone – re-derive on our own recordings.
-* **Pi 3 A+ throughput, B0176 focus control, RIF6 HDMI mode**: hardware not available.
+* **Pi Zero 2 W (or 3 A+) throughput, B0176 focus control, RIF6 HDMI mode**: hardware not available.
 
 ## Done-criteria checklist (spec §12)
 
@@ -49,4 +51,4 @@ Legend: ✅ implemented & tested here · 🟡 implemented, awaiting model artifa
 - [x] YOLO adapter integrated · [x] available artifacts genuinely loaded (HandHygiene RF/LR, S-Kia legacy) · [x] missing artifacts reported, no fake detections
 - [x] documented canonical mapping for all three · [x] time-aligned fusion · [x] temporal validation events · [x] region evidence
 - [x] projection calibration on synthetic fixtures · [x] Pi agent + diagnostic renderer · [x] backend with migrations · [x] pipeline persists through the backend
-- [x] integration/regression tests executed (119 passed) · [x] runnable commands + docs · [x] hardware-dependent items distinguished · [x] no gamification built
+- [x] integration/regression tests executed (172 passed, incl. `tests/acceptance`) · [x] runnable commands + docs · [x] hardware-dependent items distinguished · [x] no gamification built
