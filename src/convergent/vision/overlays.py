@@ -156,3 +156,62 @@ def draw_score_panel(img: np.ndarray, score: WashScore, width: int = 236, soap: 
     else:
         _text(img, f"next: {step_name(score.next_step)}", (x, y), 0.45, _YELLOW)
     return img
+
+
+# --------------------------------------------------------------------------- projection preview (laptop stand-in for the projector)
+class ProjectionPreview:
+    """Shows what the projector would draw, on the laptop: the render canvas composited onto the
+    camera view (additive, like light on skin) plus a small inset of the raw canvas (what the Pi
+    sends to the projector). An on-screen button and the P key toggle the graphics."""
+
+    BUTTON = (10, 60, 230, 92)  # x0, y0, x1, y1 in window px
+
+    def __init__(self, pipe: Any, window: str = "convergent diagnostics") -> None:
+        self.pipe, self.window = pipe, window
+        self._mouse_bound = False
+
+    @property
+    def on(self) -> bool:
+        return bool(self.pipe.scene.enabled)
+
+    def toggle(self) -> None:
+        self.pipe.scene.enabled = not self.pipe.scene.enabled
+        if self.pipe.scene.enabled:
+            self.pipe.scene.reset()
+
+    def _mouse(self, event: int, x: int, y: int, flags: int, param: Any) -> None:  # noqa: ARG002
+        x0, y0, x1, y1 = self.BUTTON
+        if event == cv2.EVENT_LBUTTONDOWN and x0 <= x <= x1 and y0 <= y <= y1:
+            self.toggle()
+
+    def bind(self) -> None:
+        if not self._mouse_bound:
+            try:
+                cv2.setMouseCallback(self.window, self._mouse)
+                self._mouse_bound = True
+            except cv2.error:
+                pass
+
+    def compose(self, img: np.ndarray, render: Any) -> np.ndarray:
+        """Blend the rendered canvas over the camera image; inset the raw canvas bottom-left."""
+        from convergent.pi_agent.renderer import render_canvas
+
+        h, w = img.shape[:2]
+        if render is not None:
+            canvas = cv2.cvtColor(render_canvas(render), cv2.COLOR_RGB2BGR)
+            if self.pipe.mapper.ready and self.pipe.mapper._Hinv is not None:
+                warped = cv2.warpPerspective(canvas, self.pipe.mapper._Hinv, (w, h))
+            else:
+                warped = cv2.resize(canvas, (w, h), interpolation=cv2.INTER_LINEAR)
+            img = cv2.add(img, warped)  # additive: projected light brightens the surface
+            iw = max(120, w // 4)
+            ih = int(iw * canvas.shape[0] / canvas.shape[1])
+            x0i, y0i = w - iw - 8, h - ih - 8  # bottom-right inset: what the Pi sends to the projector
+            img[y0i : y0i + ih, x0i : x0i + iw] = cv2.resize(canvas, (iw, ih))
+            cv2.rectangle(img, (x0i, y0i), (x0i + iw, y0i + ih), (200, 200, 200), 1)
+            _text(img, "projector canvas", (x0i + 2, y0i - 4), 0.4, (200, 200, 200))
+        x0, y0, x1, y1 = self.BUTTON
+        cv2.rectangle(img, (x0, y0), (x1, y1), (40, 120, 40) if self.on else (60, 60, 60), -1)
+        cv2.rectangle(img, (x0, y0), (x1, y1), _GREEN if self.on else _GREY, 1)
+        _text(img, f"PROJECTION: {'ON' if self.on else 'OFF'}  (P)", (x0 + 8, y0 + 21), 0.5, _WHITE, 1)
+        return img

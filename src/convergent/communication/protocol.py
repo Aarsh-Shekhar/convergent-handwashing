@@ -178,7 +178,8 @@ class DeviceStatus:
 
 
 # --------------------------------------------------------------------------- render commands
-RENDER_SHAPES = ("crosshair", "circle", "marker_grid", "chessboard", "dot_grid", "aruco_grid", "text", "clear", "skeleton", "polygon")
+RENDER_SHAPES = ("crosshair", "circle", "marker_grid", "chessboard", "dot_grid", "aruco_grid", "text", "clear", "skeleton", "polygon",
+                 "sprite", "filled_polygon", "bar")
 
 
 @dataclass
@@ -191,10 +192,17 @@ class RenderItem:
     color: list[int] = field(default_factory=lambda: [0, 255, 0])
     label: str = ""
     anchor_id: str = ""
+    sprite: str = ""      # for shape "sprite": dino | blob | pop (projection/sprites.py)
+    angle: float = 0.0    # sprite rotation, degrees
+    alpha: float = 1.0    # sprite opacity 0..1
+    progress: float = 0.0  # sprite animation phase 0..1 (pop)
+    size: float = 0.0     # "bar": width (height = radius); "text": font px (0 = default)
 
     def __post_init__(self) -> None:
         if self.shape not in RENDER_SHAPES:
             raise ProtocolError(f"unknown render shape {self.shape}")
+        if self.shape == "sprite" and self.sprite not in ("dino", "blob", "pop"):
+            raise ProtocolError(f"unknown sprite {self.sprite}")
 
 
 @dataclass

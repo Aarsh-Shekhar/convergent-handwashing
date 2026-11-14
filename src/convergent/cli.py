@@ -91,6 +91,8 @@ def cmd_replay(args: argparse.Namespace) -> int:
                          "results_dir": args.results_dir})
     client = _backend_client(args, cfg)
     pipe = Pipeline(cfg, backend_client=client, deterministic=True, save_results=args.save_results)
+    if getattr(args, "show", False):
+        _attach_show_window(pipe, getattr(args, "projection", False))
     try:
         summary = pipe.run()
     finally:
@@ -101,6 +103,37 @@ def cmd_replay(args: argparse.Namespace) -> int:
     return 0
 
 
+def _attach_show_window(pipe, projection: bool = False) -> None:  # type: ignore[no-untyped-def]
+    """Diagnostic window: skeleton, fused label, score panel, SOAP chip and the projection preview
+    (germ graphics composited on the camera image). Esc stops the run, P toggles the projection."""
+    import cv2
+
+    from convergent.vision.overlays import ProjectionPreview, draw_score_panel, render_overlay
+
+    preview = ProjectionPreview(pipe)
+    if projection:
+        pipe.scene.enabled = True
+    orig = pipe.process_frame
+
+    def _proc(frame):  # type: ignore[no-untyped-def]
+        r = orig(frame)
+        img = render_overlay(frame, r.hands, [f"fused={r.fused.native_label or r.fused.status.value} conf={r.fused.confidence}",
+                                              "Esc = stop and print score   P = projection on/off"])
+        img = preview.compose(img, r.render)
+        if r.score is not None:
+            draw_score_panel(img, r.score, soap=r.soap)
+        cv2.imshow("convergent diagnostics", img)
+        preview.bind()
+        key = cv2.waitKey(1) & 0xFF
+        if key == 27:
+            pipe.stop()  # normal end: summary, score and session end are saved
+        elif key in (ord("p"), ord("P")):
+            preview.toggle()
+        return r
+
+    pipe.process_frame = _proc  # type: ignore[method-assign]
+
+
 def cmd_camera(args: argparse.Namespace) -> int:
     from convergent.pipeline import Pipeline
 
@@ -109,28 +142,7 @@ def cmd_camera(args: argparse.Namespace) -> int:
     client = _backend_client(args, cfg)
     pipe = Pipeline(cfg, backend_client=client, deterministic=False, save_results=args.save_results)
     if args.show:
-        import cv2
-
-        from convergent.vision.overlays import draw_score_panel, render_overlay
-
-        def _show(r):  # type: ignore[no-untyped-def]
-            pass
-
-        pipe.on_frame = _show  # overlay needs the image; use the source frame directly
-        orig = pipe.process_frame
-
-        def _proc(frame):  # type: ignore[no-untyped-def]
-            r = orig(frame)
-            img = render_overlay(frame, r.hands, [f"fused={r.fused.native_label or r.fused.status.value} conf={r.fused.confidence}",
-                                                  "Esc = stop and print score"])
-            if r.score is not None:
-                draw_score_panel(img, r.score, soap=r.soap)
-            cv2.imshow("convergent diagnostics", img)
-            if cv2.waitKey(1) & 0xFF == 27:
-                pipe.stop()  # normal end: summary, score and session end are saved
-            return r
-
-        pipe.process_frame = _proc  # type: ignore[method-assign]
+        _attach_show_window(pipe, getattr(args, "projection", False))
     try:
         summary = pipe.run()
     except KeyboardInterrupt:  # Ctrl+C outside the frame loop (e.g. while models load)
@@ -252,12 +264,15 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("replay", help="run the pipeline on a prerecorded video")
     p.add_argument("--video", required=True)
     p.add_argument("--json", default=None, help="write the run summary JSON here")
+    p.add_argument("--show", action="store_true", help="show the diagnostic overlay window (Esc stops, P toggles projection)")
+    p.add_argument("--projection", action="store_true", help="start with the projected game graphics on")
     common(p)
     p.set_defaults(func=cmd_replay)
 
     p = sub.add_parser("camera", help="run the pipeline on a local webcam")
     p.add_argument("--device", type=int, default=0)
-    p.add_argument("--show", action="store_true", help="show the diagnostic overlay window")
+    p.add_argument("--show", action="store_true", help="show the diagnostic overlay window (Esc stops, P toggles projection)")
+    p.add_argument("--projection", action="store_true", help="start with the projected game graphics on")
     common(p)
     p.set_defaults(func=cmd_camera)
 

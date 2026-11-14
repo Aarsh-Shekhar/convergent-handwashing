@@ -43,6 +43,7 @@ from convergent.common.types import (
     ProjectionTarget,
     TrackedHands,
 )
+from convergent.communication.protocol import RenderCommand
 from convergent.communication.websocket import DeviceGateway
 from convergent.detection.base import ArtifactStatus
 from convergent.detection.evaluation import LatencyStats, ResourceMonitor
@@ -59,6 +60,7 @@ from convergent.detection.yolo_adapter import YoloAdapter
 from convergent.projection.calibration import load_profile
 from convergent.projection.diagnostics import render_command_for_targets
 from convergent.projection.mapping import ProjectionMapper
+from convergent.projection.scene import GermScene
 from convergent.regions.evidence import EvidenceAccumulator
 from convergent.regions.foam import SoapDetector, SoapState
 from convergent.regions.progress import ProgressState, ProgressTracker
@@ -81,6 +83,7 @@ class FrameResult:
     progress: ProgressState | None = None
     score: WashScore | None = None  # live wash score, present on every frame
     soap: SoapState | None = None   # binary lather check (UI only, unvalidated heuristic)
+    render: RenderCommand | None = None  # projected game graphics for this frame (when projector.graphics is on)
 
 
 @dataclass
@@ -140,6 +143,7 @@ class Pipeline:
             except Exception as exc:  # noqa: BLE001
                 log.warning("calibration profile unreadable: %s", exc)
         self.mapper = ProjectionMapper(profile, cfg.projector)
+        self.scene = GermScene(cfg.projector.graphics, cfg.regions.min_sufficient_duration_s, (cfg.projector.logical_width, cfg.projector.logical_height))
         self.backend = backend_client
         self.gateway = gateway
         self.deterministic = deterministic
@@ -161,6 +165,7 @@ class Pipeline:
         self._last_region_push = -1e9
         self._last_live_push = -1e9
         self._render_seq = 0
+        self._last_progress: ProgressState | None = None
         self._stop_requested = False
         self.on_frame: Callable[[FrameResult], None] | None = None
 
@@ -240,8 +245,9 @@ class Pipeline:
         progress = None
         if new_events or frame.frame_id % 30 == 0:
             progress = self.progress.snapshot(frame.capture_ts, self._candidate_dict())
+        render = self._render_graphics(frame, hands, progress, score, soap) if self.scene.enabled else None
         result = FrameResult(frame=frame.without_image(), hands=hands, branch_predictions=preds, fused=fused, events=new_events,
-                             targets=targets, timing_ms=timing, progress=progress, score=score, soap=soap)
+                             targets=targets, timing_ms=timing, progress=progress, score=score, soap=soap, render=render)
         self._sink(result)
         if self.on_frame:
             self.on_frame(result)
@@ -267,6 +273,38 @@ class Pipeline:
                            np.array([r[0] for r in self._land_rows], np.float64), np.full(n, IGNORE_LABEL),
                            self._land_aspect, self.source.source_id, float(self.cfg.source.target_fps), "live")
         rec.save(self._results_dir / "landmarks.npz")
+
+    def projector_mapping(self, image_size: tuple[int, int]):  # type: ignore[no-untyped-def]
+        """camera-normalized (x, y) -> projector px. Calibrated homography when a valid profile exists,
+        otherwise (preview) the camera view stretched over the whole canvas."""
+        w, h = image_size
+        cw, ch = self.cfg.projector.logical_width, self.cfg.projector.logical_height
+        if self.mapper.ready:
+            pw, ph = self.mapper.profile.projector_width, self.mapper.profile.projector_height  # type: ignore[union-attr]
+
+            def calibrated(xn: float, yn: float) -> tuple[float, float] | None:
+                m = self.mapper.camera_to_projector(xn * w, yn * h, image_size)
+                return (m.u, m.v) if m.u is not None and m.v is not None and 0 <= m.u < pw and 0 <= m.v < ph else None
+
+            return calibrated, (pw, ph)
+        if not self.cfg.projector.graphics.preview_without_calibration:
+            return (lambda xn, yn: None), (cw, ch)
+        return (lambda xn, yn: (xn * cw, yn * ch) if 0 <= xn < 1 and 0 <= yn < 1 else None), (cw, ch)
+
+    def _render_graphics(self, frame: FramePacket, hands: TrackedHands, progress: ProgressState | None, score: WashScore | None,
+                         soap: SoapState | None) -> RenderCommand:
+        to_proj, (cw, ch) = self.projector_mapping((frame.width, frame.height))
+        self.scene.canvas = (cw, ch)
+        progress = progress if progress is not None else self._last_progress
+        if progress is not None:
+            self._last_progress = progress
+        active = self.events.state.active
+        items = self.scene.build(hands, progress, score, soap, frame.capture_ts, to_proj,
+                                 active_technique=None if active is None else active.technique)
+        prof = self.mapper.profile if self.mapper.ready else None
+        return RenderCommand(seq=self._render_seq, command="draw", calibration_profile_id=prof.profile_id if prof else None,
+                             calibration_version=prof.version if prof else None, canvas_width=cw, canvas_height=ch, items=items,
+                             valid_until_ns=int(time.monotonic_ns() + 0.5e9))
 
     def _candidate_dict(self) -> dict[str, Any] | None:
         c = self.events.state.active
@@ -296,7 +334,11 @@ class Pipeline:
             if hz > 0 and (r.events or r.frame.capture_ts - self._last_live_push >= 1.0 / hz):
                 self._last_live_push = r.frame.capture_ts
                 self._safe(lambda: self.backend.post_live(self.session_id, self.live_update(r)))  # type: ignore[union-attr]
-        if self.gateway is not None and r.targets:
+        if self.gateway is not None and r.render is not None:
+            self._render_seq = self.gateway.next_render_seq()
+            r.render.seq = self._render_seq
+            self.gateway.send_render(r.render)
+        elif self.gateway is not None and r.targets:
             self._render_seq = self.gateway.next_render_seq()
             self.gateway.send_render(render_command_for_targets(self._render_seq, r.targets, self.mapper.profile))
 

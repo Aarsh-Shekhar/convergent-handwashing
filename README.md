@@ -46,6 +46,7 @@ Windows: use WSL2 and the Linux commands. Everything is logged; if a step fails,
 |---|---|
 | **Set up a laptop** (macOS Apple Silicon or Intel; ~15 min, unattended) | double-click `SETUP_MAC.command` (or `bash SETUP_MAC.command`). It installs `uv` + Python 3.11 + every package from `uv.lock`, writes `.env` with random tokens, fetches model artifacts, runs the test-suite and a full sample replay. Check `setup_log.txt` ends with `Setup finished successfully`. Linux: `make install && make models && make test`. |
 | **Hardware day** (Pi + camera + projector arrive) | follow `docs/HARDWARE_DAY_RUNBOOK.md`: laptop `bash START_LAPTOP.command`; Pi `bash scripts/pi/install_pi.sh <LAPTOP_IP> <DEVICE_TOKEN>`. That is the whole bring-up. |
+| **See the projected germs on your own webcam** | `.venv/bin/python -m convergent.cli camera --device 1 --show --projection` (click PROJECTION or press P; `docs/PROJECTION_GRAPHICS.md`) |
 | **See it run without hardware** | terminal 1 `bash START_LAPTOP.command`; terminal 2 `.venv/bin/python -m convergent.cli pi-emulator --video data/samples/handwashing_missing_step.mp4 --max-frames 300` |
 | **Run the pipeline on a video** | `.venv/bin/python -m convergent.cli replay --video <mp4> --save-results --backend inprocess` → `runs/<session>/` |
 | **Check which models are loaded** | `.venv/bin/python -m convergent.cli models` |
@@ -88,7 +89,7 @@ Every command below is real (`.venv/bin/python -m convergent.cli --help`):
 * ✅ Wash score: per-step timers that start ~1 s after a step begins, 0–100 points, 0–5 stars,
   `finished` milestone; `live` WebSocket feed at 5 Hz for the game layer (`docs/GAMIFICATION_HANDOFF.md`).
 * ✅ Acceptance test (`make accept`): the full sample clip must give 6 events in WHO order, thumb
-  missing, correct sides, ≥ 3 stars. 173 tests in total, pass on Linux and macOS (M3, M5 Pro).
+  missing, correct sides, ≥ 3 stars. 178 tests in total, pass on Linux and macOS (M3, M5 Pro).
 * ✅ Laptop pipeline, backend (REST + WebSocket), Pi agent + emulator, calibration tools, one-shot
   setup scripts for Mac and Pi, recording/benchmark/training scripts.
 * 🔧 Pi Zero 2 W, Arducam B0176 and RIF6 specifics are implemented against the documented

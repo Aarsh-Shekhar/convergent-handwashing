@@ -192,6 +192,21 @@ class SmoothingConfig(_Cfg):
     reset_gap_s: float = 0.5
 
 
+class GraphicsConfig(_Cfg):
+    """Projected game graphics (projection/scene.py): germs on the hands, glow, step strip.
+    Rendered through the same RenderCommand protocol on the Pi and in the laptop preview."""
+
+    enabled: bool = False        # also toggled live with the P key / on-screen button in `camera --show`
+    germs_per_region: int = 3
+    germ_size_px: float = 20.0
+    lead_ms: float = 0.0         # extrapolate hand-attached graphics by the measured capture->photon latency
+    show_ui: bool = True
+    ui_height_px: int = 96
+    pop_s: float = 0.5
+    sprite: str = "dino"
+    preview_without_calibration: bool = True  # no calibration profile: map the camera view onto the full canvas (uncalibrated)
+
+
 class ProjectorConfig(_Cfg):
     logical_width: int = 854
     logical_height: int = 480
@@ -199,6 +214,7 @@ class ProjectorConfig(_Cfg):
     smoothing: SmoothingConfig = Field(default_factory=SmoothingConfig)
     anchors: list[str] = Field(default_factory=lambda: ["hand_centroid", "fingertips"])
     test_tolerance_px: float = 2.0
+    graphics: GraphicsConfig = Field(default_factory=GraphicsConfig)
 
 
 class BackendClientConfig(_Cfg):

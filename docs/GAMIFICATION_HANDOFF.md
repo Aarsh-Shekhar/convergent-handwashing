@@ -124,3 +124,11 @@ the diagnostic renderer on the Pi behind the same message contract.
 * Missing models never fake output; check `session.model_versions[*].available` to adapt the game (e.g. fewer techniques scored).
 * Side-specific feedback is only possible for events with `side_resolved=true`.
 * Thresholds (`configs/development.yaml: temporal.*, regions.*, scoring.*`) are tunable without code changes; the game should not re-implement validation.
+
+
+## Projected graphics already in the repo (2026-11-14)
+
+`docs/PROJECTION_GRAPHICS.md`: germ-dinos on the hands, glow, step strip, rendered through the
+Pi `RenderCommand` protocol and previewed on the laptop (`camera --show --projection`, P key).
+The game layer can either extend `projection/scene.py` (same protocol, works on the Pi today) or
+drive its own page from the `live` WebSocket feed; both read the same `ProgressState`/`WashScore`.

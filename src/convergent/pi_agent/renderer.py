@@ -16,11 +16,16 @@ import os
 import struct
 import time
 from pathlib import Path
+from typing import Any
 
 import numpy as np
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFont
 
 from convergent.communication.protocol import RenderCommand, RenderItem
+from convergent.projection.sprites import draw_sprite
+
+_FONT_PATH = next((p for p in ("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+                               "/usr/share/fonts/truetype/freefont/FreeSansBold.ttf") if os.path.exists(p)), None)
 
 
 def _draw_chessboard(draw: ImageDraw.ImageDraw, w: int, h: int, cols: int = 9, rows: int = 6, margin: int = 40) -> None:
@@ -48,14 +53,33 @@ def render_canvas(cmd: RenderCommand, previous: np.ndarray | None = None) -> np.
     Every command describes a complete frame (a diagnostic frame is replaced, never
     accumulated), so ``previous`` is only kept for API compatibility."""
     w, h = cmd.canvas_width, cmd.canvas_height
-    img = Image.new("RGB", (w, h), (0, 0, 0))
+    img = Image.new("RGBA", (w, h), (0, 0, 0, 255))
     draw = ImageDraw.Draw(img)
     if cmd.command == "clear":
-        return np.asarray(img)
+        return np.asarray(img.convert("RGB"))
+    font_cache: dict[int, Any] = {}
+
+    def font(px: int):  # type: ignore[no-untyped-def]
+        if px not in font_cache:
+            try:
+                font_cache[px] = ImageFont.truetype(_FONT_PATH, px) if _FONT_PATH else ImageFont.load_default()
+            except OSError:
+                font_cache[px] = ImageFont.load_default()
+        return font_cache[px]
+
     for it in cmd.items:
         color = tuple(int(c) for c in it.color)
         if it.shape == "clear":
-            draw.rectangle([0, 0, w, h], fill=(0, 0, 0))
+            draw.rectangle([0, 0, w, h], fill=(0, 0, 0, 255))
+        elif it.shape == "sprite" and it.x is not None and it.y is not None:
+            draw_sprite(img, it.sprite, it.x, it.y, it.radius, it.angle, color, it.alpha, it.progress)
+        elif it.shape == "filled_polygon" and it.points and len(it.points) >= 3:
+            ImageDraw.Draw(img, "RGBA").polygon([(float(p[0]), float(p[1])) for p in it.points], fill=(*color, int(255 * it.alpha)))
+        elif it.shape == "bar" and it.x is not None and it.y is not None:
+            bw, bh = max(1.0, it.size), max(1.0, it.radius)
+            d = ImageDraw.Draw(img, "RGBA")
+            d.rectangle([it.x, it.y, it.x + bw, it.y + bh], outline=(*color, 255), width=2)
+            d.rectangle([it.x, it.y, it.x + bw * max(0.0, min(1.0, it.progress)), it.y + bh], fill=(*color, int(255 * it.alpha)))
         elif it.shape == "chessboard":
             _draw_chessboard(draw, w, h)
         elif it.shape == "dot_grid":
@@ -76,14 +100,14 @@ def render_canvas(cmd: RenderCommand, previous: np.ndarray | None = None) -> np.
             elif len(pts) >= 2:
                 draw.line(pts, fill=color, width=2)
         elif it.shape == "text" and it.x is not None and it.y is not None:
-            draw.text((it.x, it.y), it.label, fill=color)
+            draw.text((it.x, it.y), it.label, fill=color, font=font(int(it.size) if it.size > 0 else 12))
         elif it.shape in ("marker_grid", "aruco_grid"):
             # ArUco bitmaps require OpenCV; on the Pi we draw a labelled dot grid as a fallback
             _draw_dot_grid(draw, w, h)
             draw.text((10, 10), f"{it.shape} (fallback dot grid)", fill=(255, 255, 0))
     if cmd.text:
         draw.text((10, h - 20), cmd.text[:120], fill=(200, 200, 200))
-    return np.asarray(img)
+    return np.asarray(img.convert("RGB"))
 
 
 class ImageRenderer:

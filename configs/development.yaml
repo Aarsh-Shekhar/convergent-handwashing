@@ -91,6 +91,13 @@ projector:
   profile_path: models/calibration/active_profile.json
   anchors: [hand_centroid, fingertips]
   smoothing: {method: one_euro, one_euro_min_cutoff: 1.5, one_euro_beta: 0.05, reset_gap_s: 0.5, max_prediction_horizon_s: 0.1}
+  graphics:                # projected game graphics (germ-dinos on the hands, glow, step strip); P key toggles in `camera --show`
+    enabled: false
+    germs_per_region: 3
+    germ_size_px: 20
+    lead_ms: 0             # set to the measured capture->projector latency on hardware day
+    show_ui: true
+    preview_without_calibration: true
 backend:
   enabled: false
   base_url: http://127.0.0.1:8000

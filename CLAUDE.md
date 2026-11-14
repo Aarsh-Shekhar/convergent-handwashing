@@ -147,6 +147,10 @@ Sample clip result: 4 of 7 steps found (no palm, thumb or wrist), 49.6 s total, 
 
 **Status:** the thresholds (3 s, 20 s, 5 of 7) are first guesses. Tune them from real washes. The score and model changes are uncommitted on `main` unless git says otherwise. Branch before committing.
 
+## Projected graphics (2026-11-14)
+
+`projection/scene.py` + `projection/sprites.py`: germ-dinos per (hand, region) cell that die with region evidence, glow, bottom step strip. Same `RenderCommand` protocol as the Pi (`sprite`, `bar`, `filled_polygon` shapes added). Preview on the laptop: `camera --show --projection` or press P; `vision/overlays.py ProjectionPreview`. Config `projector.graphics`. `lead_ms` extrapolates hand graphics by the measured latency (0 until measured). Details: `docs/PROJECTION_GRAPHICS.md`.
+
 ## Known limits (state these honestly)
 
 - The score and coverage measure recognized motion time. They are not proof of clean hands, soap contact or microbial removal. The SOAP checkmark (2026-11-14, `regions/foam.py` SoapDetector, `soap:` config) is a brightness heuristic for the UI and the `live` feed only; it never touches score or evidence.
