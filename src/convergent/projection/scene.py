@@ -55,6 +55,7 @@ class GraphicsConfig:
     ui_height_px: int = 96
     pop_s: float = 0.5
     sprite: str = "dino"
+    green_only: bool = False      # hand graphics in the projector's green light only (projection-proof tracking)
 
 
 @dataclass
@@ -124,6 +125,10 @@ class GermScene:
             tr = self._tracks[hand.track_id] = _HandTrack(centroid, ts)
         return tr.velocity * (self.cfg.lead_ms / 1000.0)
 
+    def _col(self, color: tuple[int, int, int] | list[int]) -> list[int]:
+        """Hand graphics colour. With green_only: pure green at the same brightness, so the camera's red and blue stay clean."""
+        return [0, max(color), 0] if self.cfg.green_only else list(color)
+
     def _hand_items(self, hand: HandObservation, progress: object | None, ts: float, to_proj: ToProjector, active: bool) -> list[RenderItem]:
         geo = compute_geometry(hand)
         lm = hand.landmark_array()[:, :2]
@@ -142,7 +147,7 @@ class GermScene:
         p = to_proj(float(c[0]), float(c[1]))
         if p is not None:
             items.append(RenderItem("sprite", x=p[0], y=p[1], radius=self.cfg.germ_size_px * 3.2, sprite="blob",
-                                    color=list(GLOW_ACTIVE if active else GLOW_DONE), alpha=0.45 if active else 0.25))
+                                    color=self._col(GLOW_ACTIVE if active else GLOW_DONE), alpha=0.45 if active else 0.25))
         side = hand.side if hand.side in (HandSide.LEFT, HandSide.RIGHT) else HandSide.UNKNOWN
         for region in REGIONS:
             poly = geo.polygons.get(region)
@@ -163,14 +168,14 @@ class GermScene:
                     self.germs_alive += 1
                     wiggle = 12.0 * math.sin(ts * 6.0 + i * 1.7)
                     items.append(RenderItem("sprite", x=p[0], y=p[1], radius=self.cfg.germ_size_px, sprite=self.cfg.sprite,
-                                            angle=angle + wiggle, color=list(GERM_COLOR), anchor_id=f"{side.value}:{region.value}:{i}"))
+                                            angle=angle + wiggle, color=self._col(GERM_COLOR), anchor_id=f"{side.value}:{region.value}:{i}"))
                 else:
                     if g.popped_at is None:
                         g.popped_at = ts
                     age = ts - g.popped_at
                     if age < self.cfg.pop_s:
                         items.append(RenderItem("sprite", x=p[0], y=p[1], radius=self.cfg.germ_size_px, sprite="pop", progress=age / self.cfg.pop_s,
-                                                color=[255, 240, 120]))
+                                                color=self._col([255, 240, 120])))
         return items
 
     # ---- fixed strip

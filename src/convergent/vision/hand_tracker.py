@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import time
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from pathlib import Path
 
 import numpy as np
@@ -199,6 +200,8 @@ class HandTracker:
             handedness_trust_threshold=self.cfg.handedness_trust_threshold,
         )
         self.frames_processed = 0
+        # optional: changes only the picture MediaPipe sees (BGR in/out), e.g. removing projector light; the frame is untouched
+        self.image_filter: Callable[[np.ndarray], np.ndarray] | None = None
 
     @property
     def tracker_id(self) -> str:
@@ -214,7 +217,8 @@ class HandTracker:
         if frame.image is None:
             raise TrackerError("frame has no image data")
         t0 = time.perf_counter()
-        rgb = frame.image[..., ::-1] if frame.color_format.value == "bgr" else frame.image
+        img = frame.image if self.image_filter is None else self.image_filter(frame.image)
+        rgb = img[..., ::-1] if frame.color_format.value == "bgr" else img
         raw = self.backend.detect(np.ascontiguousarray(rgb), int(round(frame.capture_ts * 1000)))
         detections = []
         for lm, wl, label, score, presence in raw:

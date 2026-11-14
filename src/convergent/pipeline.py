@@ -66,6 +66,7 @@ from convergent.regions.foam import SoapDetector, SoapState
 from convergent.regions.progress import ProgressState, ProgressTracker
 from convergent.scoring.wash_score import WashScore, WashScorer
 from convergent.vision.hand_tracker import HandTracker
+from convergent.vision.projector_light import remove_green_light
 from convergent.vision.sources import FrameSource, NetworkSource, create_source
 
 log = get_logger(__name__)
@@ -144,6 +145,9 @@ class Pipeline:
                 log.warning("calibration profile unreadable: %s", exc)
         self.mapper = ProjectionMapper(profile, cfg.projector)
         self.scene = GermScene(cfg.projector.graphics, cfg.regions.min_sufficient_duration_s, (cfg.projector.logical_width, cfg.projector.logical_height))
+        self._last_render: RenderCommand | None = None
+        if cfg.projector.graphics.green_only or cfg.projector.graphics.simulate_feedback > 0:
+            self.tracker.image_filter = self._tracker_image
         self.backend = backend_client
         self.gateway = gateway
         self.deterministic = deterministic
@@ -246,6 +250,7 @@ class Pipeline:
         if new_events or frame.frame_id % 30 == 0:
             progress = self.progress.snapshot(frame.capture_ts, self._candidate_dict())
         render = self._render_graphics(frame, hands, progress, score, soap) if self.scene.enabled else None
+        self._last_render = render
         result = FrameResult(frame=frame.without_image(), hands=hands, branch_predictions=preds, fused=fused, events=new_events,
                              targets=targets, timing_ms=timing, progress=progress, score=score, soap=soap, render=render)
         self._sink(result)
@@ -290,6 +295,28 @@ class Pipeline:
         if not self.cfg.projector.graphics.preview_without_calibration:
             return (lambda xn, yn: None), (cw, ch)
         return (lambda xn, yn: (xn * cw, yn * ch) if 0 <= xn < 1 and 0 <= yn < 1 else None), (cw, ch)
+
+    def _tracker_image(self, img: np.ndarray) -> np.ndarray:
+        """The picture the hand tracker sees while graphics are on: optionally the previous render added as projector
+        light (``simulate_feedback``, testing without a projector), then the projector's green light removed (``green_only``)."""
+        g = self.cfg.projector.graphics
+        if not self.scene.enabled:
+            return img
+        if g.simulate_feedback > 0 and self._last_render is not None:
+            import cv2
+
+            from convergent.pi_agent.renderer import render_canvas
+
+            h, w = img.shape[:2]
+            light = render_canvas(self._last_render)[..., ::-1].astype(np.float32) * g.simulate_feedback  # RGB -> BGR
+            if self.mapper.ready and self.mapper._Hinv is not None:
+                light = cv2.warpPerspective(light, self.mapper._Hinv, (w, h))
+            else:
+                light = cv2.resize(light, (w, h), interpolation=cv2.INTER_LINEAR)
+            light[..., 2] += g.green_leak[0] * light[..., 1]  # projector green also reaches the camera's red and blue
+            light[..., 0] += g.green_leak[1] * light[..., 1]
+            img = np.clip(img + light, 0, 255).astype(np.uint8)
+        return remove_green_light(img, g.green_fit, g.green_leak) if g.green_only else img
 
     def _render_graphics(self, frame: FramePacket, hands: TrackedHands, progress: ProgressState | None, score: WashScore | None,
                          soap: SoapState | None) -> RenderCommand:

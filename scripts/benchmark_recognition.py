@@ -109,7 +109,7 @@ def main() -> int:
     ap.add_argument("--config", default=None)
     ap.add_argument("--weights", default=None, help="fusion weight overrides, e.g. temporal_v2=1,skia_temporal=0,handhygiene=0")
     ap.add_argument("--disable", default=None, help="comma-separated branches to disable: handhygiene,skia,temporal_v2")
-    ap.add_argument("--set", action="append", default=[], help="config override section.key=value (repeatable), e.g. temporal_v2.smooth_s=0")
+    ap.add_argument("--set", action="append", default=[], help="config override section.key=value (repeatable, nested ok), e.g. temporal_v2.smooth_s=0 or projector.graphics.green_only=true")
     ap.add_argument("--workers", type=int, default=6)
     ap.add_argument("--out", type=Path, default=None)
     ap.add_argument("--quiet", action="store_true")
@@ -121,12 +121,15 @@ def main() -> int:
         overrides.setdefault(b.strip(), {})["enabled"] = False
     for kv in args.set:
         path, val = kv.split("=", 1)
-        sec, key = path.split(".", 1)
+        *secs, key = path.split(".")  # nested keys work too, e.g. projector.graphics.green_only=true
         try:
             parsed = json.loads(val)
         except json.JSONDecodeError:
             parsed = val  # plain strings such as paths
-        overrides.setdefault(sec, {})[key] = parsed
+        node = overrides
+        for sec in secs:
+            node = node.setdefault(sec, {})
+        node[key] = parsed
     jobs: list[dict] = []
     root = resolve_path(args.own)
     rounds = [r.strip() for r in args.rounds.split(",")] if args.rounds else (sorted(p.name for p in root.iterdir() if p.is_dir()) if args.all_rounds and root.exists() else [])

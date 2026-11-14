@@ -205,6 +205,12 @@ class GraphicsConfig(_Cfg):
     pop_s: float = 0.5
     sprite: str = "dino"
     preview_without_calibration: bool = True  # no calibration profile: map the camera view onto the full canvas (uncalibrated)
+    # Projection-proof tracking (vision/projector_light.py): hand graphics use only the projector's green light and the
+    # tracker removes that light from its picture. One switch for both, so palette and filter always agree.
+    green_only: bool = False
+    green_fit: tuple[float, float, float] = (0.416, 0.633, -3.2)  # camera green = a*R + b*B + c (scripts/fit_green.py; Mac webcam)
+    green_leak: tuple[float, float] = (0.10, 0.10)  # projector green seen by the camera's red / blue (measure on hardware day)
+    simulate_feedback: float = 0.0  # testing without a projector: add the previous render to the tracker's picture at this strength
 
 
 class ProjectorConfig(_Cfg):

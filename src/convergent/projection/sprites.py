@@ -40,12 +40,12 @@ def draw_dino(layer: Image.Image, x: float, y: float, size: float, angle_deg: fl
         d.polygon(_rot([(lx, 0.3), (lx + 0.2, 0.3), (lx + 0.2, 0.75), (lx - 0.02, 0.75)], angle_deg, x, y, s), fill=dark)
     for i, sx in enumerate((-0.35, -0.05, 0.25)):
         d.polygon(_rot([(sx, -0.38), (sx + 0.15, -0.72 + 0.05 * i), (sx + 0.3, -0.38)], angle_deg, x, y, s), fill=dark)
-    # eye + pupil
+    # eye + pupil: white/near-black, but only in the body's own channels (a pure-green dino stays pure green)
     ex, ey = _rot([(0.72, -0.33)], angle_deg, x, y, s)[0]
     r = 0.11 * s
-    d.ellipse([ex - r, ey - r, ex + r, ey + r], fill=(255, 255, 255, a))
+    d.ellipse([ex - r, ey - r, ex + r, ey + r], fill=(*(255 if ch > 0 else 0 for ch in color), a))
     r2 = 0.05 * s
-    d.ellipse([ex - r2, ey - r2, ex + r2, ey + r2], fill=(20, 20, 20, a))
+    d.ellipse([ex - r2, ey - r2, ex + r2, ey + r2], fill=(*(20 if ch > 0 else 0 for ch in color), a))
 
 
 _BLOB_CACHE: dict[tuple[int, tuple[int, int, int], int], Image.Image] = {}

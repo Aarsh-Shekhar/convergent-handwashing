@@ -84,6 +84,18 @@ def test_germs_ride_with_the_hand_and_die_with_evidence():
     assert not any(i.sprite == "pop" for i in items3)  # pop is over after pop_s
 
 
+def test_green_only_hand_graphics_use_no_red_or_blue_light():
+    scene = GermScene(GraphicsConfig(enabled=True, show_ui=True, green_only=True))
+    items = scene.build(tracked(0.0, [hand(0.5, 0.7)]), None, None, None, 0.0, IDENTITY, active_technique="palm_to_palm")
+    hand_items = [i for i in items if i.shape == "sprite"]
+    assert hand_items and all(i.color[0] == 0 and i.color[2] == 0 and i.color[1] > 0 for i in hand_items)
+    canvas = render_canvas(RenderCommand(seq=1, command="draw", calibration_profile_id=None, calibration_version=None,
+                                         canvas_width=854, canvas_height=480, items=hand_items))
+    assert canvas[..., 1].max() > 100 and canvas[..., 0].max() == 0 and canvas[..., 2].max() == 0  # dino eyes too
+    plain = GermScene(GraphicsConfig(enabled=True, show_ui=False)).build(tracked(0.0, [hand(0.5, 0.7)]), None, None, None, 0.0, IDENTITY)
+    assert any(i.color[0] > 0 for i in plain)  # default look unchanged
+
+
 def test_lead_time_extrapolates_along_the_motion():
     cfg = GraphicsConfig(enabled=True, germs_per_region=1, show_ui=False, lead_ms=200)
     a, b = GermScene(cfg), GermScene(GraphicsConfig(enabled=True, germs_per_region=1, show_ui=False, lead_ms=0))

@@ -98,6 +98,10 @@ projector:
     lead_ms: 0             # set to the measured capture->projector latency on hardware day
     show_ui: true
     preview_without_calibration: true
+    green_only: false      # projection-proof tracking: hand graphics in green light only + tracker removes it (docs/PROJECTION_GRAPHICS.md)
+    green_fit: [0.416, 0.633, -3.2]   # camera green = a*R + b*B + c, Mac webcam; refit for the Arducam (scripts/fit_green.py)
+    green_leak: [0.10, 0.10]          # projector green seen by the camera's red / blue: guess, measure on hardware day
+    simulate_feedback: 0.0            # >0: add the last render to the tracker's picture (test without a projector)
 backend:
   enabled: false
   base_url: http://127.0.0.1:8000

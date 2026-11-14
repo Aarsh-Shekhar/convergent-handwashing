@@ -7,7 +7,7 @@ This repo is the technical foundation. The child-facing game, the parent app and
 ## Environment (Andrew's Mac)
 
 - Repo: `~/convergent-handwashing`. Always use `.venv/bin/python`, not the Conda `(base)` Python.
-- Fast tests: `.venv/bin/python -m pytest tests/unit -m "not mediapipe"`. Full suite: `.venv/bin/python -m pytest -q` (158 tests, all passing as of 2026-11-11).
+- Fast tests: `.venv/bin/python -m pytest tests/unit -m "not mediapipe"`. Full suite: `.venv/bin/python -m pytest -q` (187 tests as of 2026-11-14; `tests/acceptance/test_model_acceptance.py::test_events_in_who_order_with_thumb_missing` fails on `main` before the green fix too, not investigated).
 - Lint: `.venv/bin/ruff check src tests`.
 - Sample clip: `data/samples/handwashing_missing_step.mp4`. It is git-ignored and was downloaded from `dpt-xyz/hand-wash-compliance-yolo` (`TestingData/missingStep_test1.mp4`). Don't swap in a different clip, because the regression fingerprint depends on this one.
 - Cameras: index 0 is usually the iPhone (Continuity Camera). The MacBook webcam is usually `--device 1`. Index order can change between machines and sessions. The webcam is grabbed in a background thread (2026-11-14); `tracker.backend` defaults to `solutions` because `tasks` is about 2x slower on macOS. The live window shows the pipeline FPS; below 12 FPS recognition degrades.
@@ -150,6 +150,8 @@ Sample clip result: 4 of 7 steps found (no palm, thumb or wrist), 49.6 s total, 
 ## Projected graphics (2026-11-14)
 
 `projection/scene.py` + `projection/sprites.py`: germ-dinos per (hand, region) cell that die with region evidence, glow, bottom step strip. Same `RenderCommand` protocol as the Pi (`sprite`, `bar`, `filled_polygon` shapes added). Preview on the laptop: `camera --show --projection` or press P; `vision/overlays.py ProjectionPreview`. Config `projector.graphics`. `lead_ms` extrapolates hand graphics by the measured latency (0 until measured). Details: `docs/PROJECTION_GRAPHICS.md`.
+
+Green fix (2026-11-14, `projector.graphics.green_only`, off by default): hand graphics in the projector's green light only, and `vision/projector_light.py` removes that light from the tracker's picture (`HandTracker.image_filter`, set by the pipeline). Simulated projection (`simulate_feedback: 1.0`): own `down3` frame accuracy 63% no projection, 54% today's colours, 61% green fix; held-out METC 78 / 68 / 76%. Red-only tracking was tested and dropped (about 15 points lower even with the projector off). `green_fit` is per camera (`scripts/fit_green.py`), `green_leak` is a guess until hardware day. Do not raise `lead_ms` without measuring: straight-line prediction made scrubbing error worse on saved live runs (15 mm vs 12 mm at 67 ms).
 
 ## Known limits (state these honestly)
 
