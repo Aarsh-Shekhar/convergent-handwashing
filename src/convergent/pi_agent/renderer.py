@@ -22,7 +22,7 @@ import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 
 from convergent.communication.protocol import RenderCommand, RenderItem
-from convergent.projection.sprites import draw_sprite
+from convergent.projection.sprites import draw_hud, draw_sprite
 
 _FONT_PATH = next((p for p in ("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
                                "/usr/share/fonts/truetype/freefont/FreeSansBold.ttf") if os.path.exists(p)), None)
@@ -47,13 +47,15 @@ def _draw_dot_grid(draw: ImageDraw.ImageDraw, w: int, h: int, cols: int = 8, row
             draw.ellipse([x - radius, y - radius, x + radius, y + radius], fill=(255, 255, 255))
 
 
-def render_canvas(cmd: RenderCommand, previous: np.ndarray | None = None) -> np.ndarray:
-    """Render a command to an RGB uint8 canvas of the command's logical size.
+def render_canvas(cmd: RenderCommand, previous: np.ndarray | None = None, transparent: bool = False) -> np.ndarray:
+    """Render a command to an RGB uint8 canvas of the command's logical size (what the projector shows:
+    light on black). ``transparent`` returns RGBA with a see-through background instead, for drawing the
+    graphics as solid stickers over a picture (the laptop game window).
 
     Every command describes a complete frame (a diagnostic frame is replaced, never
     accumulated), so ``previous`` is only kept for API compatibility."""
     w, h = cmd.canvas_width, cmd.canvas_height
-    img = Image.new("RGBA", (w, h), (0, 0, 0, 255))
+    img = Image.new("RGBA", (w, h), (0, 0, 0, 0 if transparent else 255))
     draw = ImageDraw.Draw(img)
     if cmd.command == "clear":
         return np.asarray(img.convert("RGB"))
@@ -73,6 +75,9 @@ def render_canvas(cmd: RenderCommand, previous: np.ndarray | None = None) -> np.
             draw.rectangle([0, 0, w, h], fill=(0, 0, 0, 255))
         elif it.shape == "sprite" and it.x is not None and it.y is not None:
             draw_sprite(img, it.sprite, it.x, it.y, it.radius, it.angle, color, it.alpha, it.progress)
+        elif it.shape == "hud" and it.x is not None and it.y is not None:
+            pts = it.points or []
+            draw_hud(img, it.x, it.y, it.size, [float(p[0]) for p in pts], [float(p[1]) for p in pts], it.label, round(it.progress * 5), color)
         elif it.shape == "filled_polygon" and it.points and len(it.points) >= 3:
             ImageDraw.Draw(img, "RGBA").polygon([(float(p[0]), float(p[1])) for p in it.points], fill=(*color, int(255 * it.alpha)))
         elif it.shape == "bar" and it.x is not None and it.y is not None:
@@ -107,7 +112,7 @@ def render_canvas(cmd: RenderCommand, previous: np.ndarray | None = None) -> np.
             draw.text((10, 10), f"{it.shape} (fallback dot grid)", fill=(255, 255, 0))
     if cmd.text:
         draw.text((10, h - 20), cmd.text[:120], fill=(200, 200, 200))
-    return np.asarray(img.convert("RGB"))
+    return np.asarray(img if transparent else img.convert("RGB"))
 
 
 class ImageRenderer:

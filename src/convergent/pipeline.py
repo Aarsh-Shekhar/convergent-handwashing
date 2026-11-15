@@ -25,6 +25,7 @@ import time
 from collections.abc import Callable
 from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass, field
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -58,6 +59,7 @@ from convergent.detection.side_resolver import SideResolver
 from convergent.detection.skia_adapter import SkiaLegacyAdapter, SkiaTemporalAdapter
 from convergent.detection.yolo_adapter import YoloAdapter
 from convergent.projection.calibration import load_profile
+from convergent.projection.coverage import CoverageScene
 from convergent.projection.diagnostics import render_command_for_targets
 from convergent.projection.mapping import ProjectionMapper
 from convergent.projection.scene import GermScene
@@ -65,6 +67,7 @@ from convergent.regions.evidence import EvidenceAccumulator
 from convergent.regions.foam import SoapDetector, SoapState
 from convergent.regions.progress import ProgressState, ProgressTracker
 from convergent.scoring.wash_score import WashScore, WashScorer
+from convergent.scoring.wash_session import WashRecord, WashSessions
 from convergent.vision.hand_tracker import HandTracker
 from convergent.vision.projector_light import remove_green_light
 from convergent.vision.sources import FrameSource, NetworkSource, create_source
@@ -85,6 +88,7 @@ class FrameResult:
     score: WashScore | None = None  # live wash score, present on every frame
     soap: SoapState | None = None   # binary lather check (UI only, unvalidated heuristic)
     render: RenderCommand | None = None  # projected game graphics for this frame (when projector.graphics is on)
+    wash: WashRecord | None = None  # set on the frame where a wash just ended (auto wash sessions)
 
 
 @dataclass
@@ -104,6 +108,7 @@ class RunSummary:
     fused_counts: dict[str, int] = field(default_factory=dict)
     dropped_frames: int = 0
     score: dict[str, Any] | None = None  # final WashScore (frozen at finish, else from released events)
+    washes: list[dict[str, Any]] = field(default_factory=list)  # WashRecords of this run (auto wash sessions)
 
     def to_json(self) -> str:
         d = self.__dict__.copy()
@@ -144,8 +149,16 @@ class Pipeline:
             except Exception as exc:  # noqa: BLE001
                 log.warning("calibration profile unreadable: %s", exc)
         self.mapper = ProjectionMapper(profile, cfg.projector)
-        self.scene = GermScene(cfg.projector.graphics, cfg.regions.min_sufficient_duration_s, (cfg.projector.logical_width, cfg.projector.logical_height))
+        scene_cls = CoverageScene if cfg.projector.graphics.mode == "coverage" else GermScene
+        self.scene = scene_cls(cfg.projector.graphics, cfg.regions.min_sufficient_duration_s, (cfg.projector.logical_width, cfg.projector.logical_height))
         self._last_render: RenderCommand | None = None
+        ws = cfg.wash_sessions
+        self.washes = WashSessions(ws.start_after_s, ws.end_after_s) if ws.enabled else None
+        self.wash_records: list[WashRecord] = []
+        self.on_wash: Callable[[WashRecord], None] | None = None
+        self._wash_wall = datetime.now(UTC)  # wall-clock time of the current wash's start
+        self._wash_frames = [0, 0, 0, 0]     # frames, without a hand, with two hands, trailing frames without a hand
+        self._wash_soap: SoapState | None = None  # latest soap check, for the record
         if cfg.projector.graphics.green_only or cfg.projector.graphics.simulate_feedback > 0:
             self.tracker.image_filter = self._tracker_image
         self.backend = backend_client
@@ -242,6 +255,11 @@ class Pipeline:
         if self.soap is not None:
             soap = self.soap.update(frame.image, hands.hands + hands.unassigned, frame.capture_ts)
             self.progress.soap_state = "detected" if soap.detected else ("seen" if soap.seen else "not_detected")
+        wash = None
+        if self.washes is not None:
+            wash = self._track_wash(frame.capture_ts, len(seen), soap)
+            if wash is not None:  # the wash is over and everything was reset: show the fresh score
+                score = self.scorer.update(frame.capture_ts, None, None)
         targets =self.mapper.map_hands(hands, (frame.width, frame.height)) if self.mapper.ready else []
         frame.timestamps.processed_ts = monotonic()
         timing["total"] = (time.perf_counter() - t0) * 1000.0
@@ -252,11 +270,66 @@ class Pipeline:
         render = self._render_graphics(frame, hands, progress, score, soap) if self.scene.enabled else None
         self._last_render = render
         result = FrameResult(frame=frame.without_image(), hands=hands, branch_predictions=preds, fused=fused, events=new_events,
-                             targets=targets, timing_ms=timing, progress=progress, score=score, soap=soap, render=render)
+                             targets=targets, timing_ms=timing, progress=progress, score=score, soap=soap, render=render, wash=wash)
         self._sink(result)
         if self.on_frame:
             self.on_frame(result)
         return result
+
+    # ---- auto wash sessions
+    def _flush_events(self, ts: float) -> list[GestureEvent]:
+        """Close the event still being built and credit it (end of a wash or of the run)."""
+        tail = self.sides.resolve_all(self.events.flush(ts))
+        for ev in tail:
+            self.progress.add_event(ev)
+        self.scorer.add_events(tail)
+        self._all_events.extend(tail)
+        if self.backend is not None and tail:
+            self._safe(lambda: self.backend.post_events(self.session_id, tail))  # type: ignore[union-attr]
+        return tail
+
+    def _track_wash(self, ts: float, n_hands: int, soap: SoapState | None) -> WashRecord | None:
+        """Per frame: start and end washes. Returns the record on the frame a wash ended."""
+        self._wash_soap = soap
+        change = self.washes.update(ts, n_hands > 0)  # type: ignore[union-attr]
+        if change == "start":
+            self._wash_wall = datetime.now(UTC) - timedelta(seconds=ts - self.washes.started_ts)  # type: ignore[union-attr]
+        if change is None and not self.washes.washing and self.washes.seen_since is None:  # type: ignore[union-attr]
+            self._wash_frames = [0, 0, 0, 0]  # nobody there
+        else:  # counted from the first frame with a hand, so the half second before "start" is included
+            f = self._wash_frames
+            f[0], f[1], f[2], f[3] = f[0] + 1, f[1] + (n_hands == 0), f[2] + (n_hands >= 2), 0 if n_hands else f[3] + 1
+        return self._end_wash() if change == "end" else None
+
+    def _end_wash(self, reset: bool = True) -> WashRecord | None:
+        """Save the record of the wash that just ended, then clear everything for the next child."""
+        w, cfg, soap = self.washes, self.cfg, self._wash_soap
+        self._flush_events(w.ended_ts)  # type: ignore[union-attr]
+        score = self.scorer.final(w.ended_ts)  # type: ignore[union-attr]
+        duration = w.ended_ts - w.started_ts  # type: ignore[union-attr]
+        record = None
+        if duration >= cfg.wash_sessions.min_duration_s or score.total_s > 0:  # else a walk-by
+            frames, lost, two, trailing = self._wash_frames
+            frames, lost = max(frames - trailing, 1), lost - trailing  # the wait for the hands to come back is not part of the wash
+            stamp = lambda t: t.isoformat(timespec="milliseconds").replace("+00:00", "Z")  # noqa: E731
+            record = WashRecord(
+                wash_id=f"{self.session_id}-w{len(self.wash_records) + 1:03d}", session_id=self.session_id,
+                started_utc=stamp(self._wash_wall), ended_utc=stamp(self._wash_wall + timedelta(seconds=duration)), duration_s=round(duration, 2),
+                seconds={st.technique: round(st.seconds, 2) for st in score.steps}, score=score, soap_seen=None if soap is None else bool(soap.seen),
+                quality={"frames": frames, "fps": round(frames / max(duration, 1e-6), 1), "no_hand_share": round(lost / frames, 3),
+                         "two_hand_share": round(two / frames, 3), "light_fix": cfg.tracker.light_fix, "green_only": cfg.projector.graphics.green_only},
+                models={k: v for k, v in self.model_versions().items() if k in ("temporal_v2", "tracker")})
+            self.wash_records.append(record)
+            if self._results_dir is not None:
+                with open(self._results_dir / "washes.jsonl", "a", encoding="utf-8") as fh:
+                    fh.write(record.model_dump_json() + "\n")
+            if self.on_wash:
+                self.on_wash(record)
+        if reset:
+            for part in (self.events, self.scorer, self.progress, self.evidence, self.sides, self.scene, *([self.soap] if self.soap else [])):
+                part.reset()
+            self._last_progress = None
+        return record
 
     def _record_landmarks(self, hands: TrackedHands, frame: FramePacket) -> None:
         if self._land_rows and hands.capture_ts <= self._land_rows[-1][0]:
@@ -358,7 +431,7 @@ class Pipeline:
                 self._last_region_push = r.frame.capture_ts
                 self._safe(lambda: self.backend.post_regions(self.session_id, r.frame.capture_ts, self.evidence.evidence()))  # type: ignore[union-attr]
             hz = self.cfg.backend.live_hz
-            if hz > 0 and (r.events or r.frame.capture_ts - self._last_live_push >= 1.0 / hz):
+            if hz > 0 and (r.events or r.wash is not None or r.frame.capture_ts - self._last_live_push >= 1.0 / hz):
                 self._last_live_push = r.frame.capture_ts
                 self._safe(lambda: self.backend.post_live(self.session_id, self.live_update(r)))  # type: ignore[union-attr]
         if self.gateway is not None and r.render is not None:
@@ -378,7 +451,8 @@ class Pipeline:
                 "active": self._candidate_dict(),
                 "score": None if r.score is None else r.score.model_dump(mode="json"),
                 "soap": None if r.soap is None else {"detected": r.soap.detected, "seen": r.soap.seen, "proxy": r.soap.proxy, "validated": False},
-                "progress": None if r.progress is None else r.progress.model_dump(mode="json")}
+                "progress": None if r.progress is None else r.progress.model_dump(mode="json"),
+                "wash": None if r.wash is None else r.wash.model_dump(mode="json")}
 
     def _flush_predictions(self) -> None:
         if self.backend is None or not self._pending_predictions:
@@ -447,14 +521,11 @@ class Pipeline:
             # Ctrl+C ends the run like a normal stop so the summary, score and session end are still saved.
             log.info("stopped by user after %d frames", frames)
         finally:
-            tail = self.sides.resolve_all(self.events.flush(last_ts))
-            for ev in tail:
-                self.progress.add_event(ev)
-            self.scorer.add_events(tail)
-            self._all_events.extend(tail)
+            if self.washes is not None and self.washes.washing:  # a wash still going when the run stops is a wash too
+                self.washes.close()
+                self._end_wash(reset=False)
+            self._flush_events(last_ts)
             if self.backend is not None:
-                if tail:
-                    self._safe(lambda: self.backend.post_events(self.session_id, tail))  # type: ignore[union-attr]
                 self._flush_predictions()
                 self._safe(lambda: self.backend.post_regions(self.session_id, last_ts, self.evidence.evidence()))  # type: ignore[union-attr]
             if self._yolo_pool is not None:
@@ -467,11 +538,12 @@ class Pipeline:
                              source_stats=self.source.stats.as_dict(), latency=LatencyStats.from_samples(self._latency).__dict__,
                              resources=mon.summary(), backend={} if self.backend is None else self.backend.stats.__dict__ | {"session": self.session_id},
                              progress=progress.model_dump(mode="json"), results_dir=None if self._results_dir is None else str(self._results_dir),
-                             fused_counts=dict(self._fused_counts), dropped_frames=self.source.stats.frames_dropped_queue, score=score)
+                             fused_counts=dict(self._fused_counts), dropped_frames=self.source.stats.frames_dropped_queue, score=score,
+                             washes=[w.model_dump(mode="json") for w in self.wash_records])
         if self.backend is not None:
             self._safe(lambda: self.backend.end_session(self.session_id, {"frames": frames, "events": len(self._all_events), "latency": summary.latency,  # type: ignore[union-attr]
                                                                            "source": summary.source_stats, "fused_counts": summary.fused_counts,
-                                                                           "wash_score": score, "ended_at": utc_now_iso()}))
+                                                                           "wash_score": score, "washes": summary.washes, "ended_at": utc_now_iso()}))
         if self._results_fh is not None:
             self._results_fh.close()
             self._save_landmarks()

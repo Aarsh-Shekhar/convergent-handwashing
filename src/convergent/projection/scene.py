@@ -56,6 +56,9 @@ class GraphicsConfig:
     pop_s: float = 0.5
     sprite: str = "dino"
     green_only: bool = False      # hand graphics in the projector's green light only (projection-proof tracking)
+    # coverage scene (projection/coverage.py)
+    hold_s: float = 0.4           # keep a lost hand's graphics this long, fading out
+    flip_facing: bool = False     # palm/back come out reversed when the tracker's left/right is reversed
 
 
 @dataclass

@@ -41,6 +41,7 @@ from convergent.common.types import (
     VisibilityState,
 )
 from convergent.vision.hand_identity import HandIdentityResolver, RawHandDetection, ResolvedHand
+from convergent.vision.projector_light import normalise_light
 
 log = get_logger(__name__)
 
@@ -218,6 +219,8 @@ class HandTracker:
             raise TrackerError("frame has no image data")
         t0 = time.perf_counter()
         img = frame.image if self.image_filter is None else self.image_filter(frame.image)
+        if self.cfg.light_fix:  # after the filter: removing projector light needs the camera's real colours
+            img = normalise_light(img)
         rgb = img[..., ::-1] if frame.color_format.value == "bgr" else img
         raw = self.backend.detect(np.ascontiguousarray(rgb), int(round(frame.capture_ts * 1000)))
         detections = []
@@ -225,6 +228,8 @@ class HandTracker:
             if lm.shape != (NUM_HAND_LANDMARKS, 3):
                 log.warning("backend returned malformed landmarks %s; skipping hand", lm.shape)
                 continue
+            if float(np.ptp(lm[:, :2], axis=0).max()) < self.cfg.min_hand_size:
+                continue  # far too small for a real hand: a false detection in the background
             anat = label_to_side(swap_label(label) if self.cfg.swap_handedness else label)
             detections.append(RawHandDetection(lm, label, float(np.clip(score, 0, 1)), anat, wl, presence))
         resolved = self.identity.update(detections, frame.capture_ts)

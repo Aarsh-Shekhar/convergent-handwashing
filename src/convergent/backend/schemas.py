@@ -116,6 +116,7 @@ class LiveUpdate(ApiModel):
     score: dict[str, Any] | None = None                       # WashScore
     soap: dict[str, Any] | None = None                        # {detected, seen, proxy, validated: false}
     progress: dict[str, Any] | None = None                    # ProgressState (sent when the pipeline refreshed it)
+    wash: dict[str, Any] | None = None                        # WashRecord, on the message where a wash just ended (auto wash sessions)
 
 
 class EventBatch(ApiModel):

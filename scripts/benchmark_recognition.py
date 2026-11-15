@@ -52,6 +52,16 @@ TRIM_S = 0.7  # the first moments of an own clip are the person getting into the
 FPS = 15.0
 
 
+def _degrade(kind: str):  # type: ignore[no-untyped-def]
+    """Simulated bad light on the tracker's picture (BGR uint8 -> BGR uint8), for --degrade."""
+    rng = np.random.default_rng(0)
+    fn = {"dark": lambda f: f * 0.25,                                        # quarter brightness
+          "blue": lambda f: f * np.array([1.2, 1.0, 0.7], np.float32),      # blue-ish light
+          "flat": lambda f: 128 + (f - 128) * 0.2,                           # washed out
+          "grainy": lambda f: f + rng.normal(0, 15, f.shape)}[kind]          # sensor noise
+    return lambda img: np.clip(fn(img.astype(np.float32)), 0, 255).astype(np.uint8)
+
+
 def _extractor():
     spec = importlib.util.spec_from_file_location("extract_landmarks_v2", ROOT / "scripts" / "extract_landmarks_v2.py")
     mod = importlib.util.module_from_spec(spec)
@@ -75,8 +85,10 @@ def run_clip(job: dict) -> dict:
         cap.release()
         frame_labels = _extractor().metc_frame_labels(Path(job["annotation"]), src_fps)
     pipe = Pipeline(cfg, deterministic=True)
+    if job.get("degrade"):  # the camera's picture is bad; projector-light removal (if on) and the light fix come after
+        bad, inner = _degrade(job["degrade"]), pipe.tracker.image_filter
+        pipe.tracker.image_filter = bad if inner is None else (lambda img: inner(bad(img)))
     rows: list[tuple[float, str, str, int, dict[str, str]]] = []
-
     def on_frame(r):  # type: ignore[no-untyped-def]
         ts = r.frame.capture_ts
         if frame_labels is not None:
@@ -110,6 +122,7 @@ def main() -> int:
     ap.add_argument("--weights", default=None, help="fusion weight overrides, e.g. temporal_v2=1,skia_temporal=0,handhygiene=0")
     ap.add_argument("--disable", default=None, help="comma-separated branches to disable: handhygiene,skia,temporal_v2")
     ap.add_argument("--set", action="append", default=[], help="config override section.key=value (repeatable, nested ok), e.g. temporal_v2.smooth_s=0 or projector.graphics.green_only=true")
+    ap.add_argument("--degrade", choices=["dark", "blue", "flat", "grainy"], default=None, help="simulate bad light on the tracker's picture")
     ap.add_argument("--workers", type=int, default=6)
     ap.add_argument("--out", type=Path, default=None)
     ap.add_argument("--quiet", action="store_true")
@@ -146,7 +159,7 @@ def main() -> int:
         print("no clips: give --rounds / --all-rounds and/or --metc")
         return 1
     for j in jobs:
-        j.update(config=args.config, overrides=overrides)
+        j.update(config=args.config, overrides=overrides, degrade=args.degrade)
     if args.workers > 1 and len(jobs) > 1:
         with ProcessPoolExecutor(max_workers=args.workers) as ex:
             results = list(ex.map(run_clip, jobs))

@@ -179,7 +179,12 @@ class DeviceStatus:
 
 # --------------------------------------------------------------------------- render commands
 RENDER_SHAPES = ("crosshair", "circle", "marker_grid", "chessboard", "dot_grid", "aruco_grid", "text", "clear", "skeleton", "polygon",
-                 "sprite", "filled_polygon", "bar")
+                 "sprite", "filled_polygon", "bar", "hud")
+
+
+# sprite names the renderer knows (projection/sprites.py): drawn shapes and the sheets from scripts/make_sprites.py
+SPRITE_KINDS = ("dino", "blob", "pop", "burst", "twinkle",
+                *(f"{g}{state}" for g in ("jelly", "spiky", "fuzzy") for state in ("", "_blink", "_scared")))
 
 
 @dataclass
@@ -192,7 +197,7 @@ class RenderItem:
     color: list[int] = field(default_factory=lambda: [0, 255, 0])
     label: str = ""
     anchor_id: str = ""
-    sprite: str = ""      # for shape "sprite": dino | blob | pop (projection/sprites.py)
+    sprite: str = ""      # for shape "sprite": one of SPRITE_KINDS
     angle: float = 0.0    # sprite rotation, degrees
     alpha: float = 1.0    # sprite opacity 0..1
     progress: float = 0.0  # sprite animation phase 0..1 (pop)
@@ -201,7 +206,7 @@ class RenderItem:
     def __post_init__(self) -> None:
         if self.shape not in RENDER_SHAPES:
             raise ProtocolError(f"unknown render shape {self.shape}")
-        if self.shape == "sprite" and self.sprite not in ("dino", "blob", "pop"):
+        if self.shape == "sprite" and self.sprite not in SPRITE_KINDS:
             raise ProtocolError(f"unknown sprite {self.sprite}")
 
 

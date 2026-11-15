@@ -102,6 +102,33 @@ The score measures recognized washing-motion time. It does not measure clean han
 contact or surface coverage. One pipeline run is one wash. `WashScorer.reset()` exists for
 the future per-child session lifecycle.
 
+## Wash records (auto wash sessions, 2026-11-14)
+
+With `wash_sessions.enabled` (`camera --auto-wash`) one camera run is split into washes: a wash starts
+when a hand has been tracked for 0.5 s and ends 4 s after the last hand was seen. Each wash gives one
+`WashRecord` (`scoring/wash_session.py`), then score, events, evidence and germs are reset for the next
+child. A hand in view for under 3 s with nothing washed is a walk-by and gives no record.
+
+Where it goes: `Pipeline.on_wash(record)` and `Pipeline.wash_records` in process, one line per wash in
+`runs/<session_id>/washes.jsonl`, `RunSummary.washes` / `summary.json`, the `wash` field of the `live`
+message on the frame the wash ended, and `stats.washes` of the backend session when the run ends
+(no new table). A wash still going when the run stops is recorded too.
+
+```json
+{"schema_version": "wash-record-v1", "wash_id": "ses_d830...-w001", "session_id": "ses_d830...",
+ "started_utc": "2026-11-15T02:52:40.007Z", "ended_utc": "2026-11-15T02:54:10.540Z", "duration_s": 90.53,
+ "seconds": {"palm_to_palm": 19.5, "back_of_hand": 18.07, "interlaced_fingers": 18.47, "backs_of_fingers": 17.2,
+             "thumb_rubbing": 0.0, "fingertip_rubbing": 9.0, "wrist_rubbing": 7.53},
+ "score": { "...WashScore..." },
+ "soap_seen": true,
+ "quality": {"frames": 1359, "fps": 15.0, "no_hand_share": 0.081, "two_hand_share": 0.16, "light_fix": true, "green_only": false},
+ "models": {"temporal_v2": {"version": "2.0.0", "sha256": "f33fdd0d..."}, "tracker": "mediapipe.solutions.hands:0.10.21"}}
+```
+
+`seconds` is what the parents' app shows: recognized washing-motion time per part, not proof of clean
+hands. `quality` lets the app skip a bad session (low fps, hands lost most of the time). There is no
+child identity: pairing a wash with a child is the app's job. `ended_utc` is when the hands were last seen.
+
 ## Projection
 
 `ProjectionTarget[]` per frame: `{anchor_type: landmark|hand_centroid|region_centroid, anchor_id:

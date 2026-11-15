@@ -74,6 +74,9 @@ def _print_summary(summary) -> None:  # type: ignore[no-untyped-def]
         if not sc["finished"] and sc["next_step"]:
             print(f"  next suggested step: {sc['next_step']}")
         print("  (score = recognized washing-motion time, not proof of clean hands)")
+    for w in getattr(summary, "washes", None) or []:
+        parts = "  ".join(f"{k.split('_')[0]} {v:.1f}s" for k, v in w["seconds"].items())
+        print(f"wash {w['wash_id'][-4:]}: {w['duration_s']:.0f}s, {w['score']['stars']}/5 stars  |  {parts}")
     soap = (summary.progress or {}).get("procedure_states", {}).get("soap")
     if soap:
         print(f"soap/lather seen: {'yes' if soap in ('seen', 'detected') else 'no'}  (unvalidated brightness heuristic, UI only)")
@@ -88,11 +91,11 @@ def cmd_replay(args: argparse.Namespace) -> int:
     from convergent.pipeline import Pipeline
 
     cfg = _config(args, {"source": {"kind": "video", "path": args.video, "max_frames": args.max_frames, "target_fps": args.fps},
-                         "results_dir": args.results_dir})
+                         "results_dir": args.results_dir, "wash_sessions": {"enabled": bool(args.auto_wash)}})
     client = _backend_client(args, cfg)
     pipe = Pipeline(cfg, backend_client=client, deterministic=True, save_results=args.save_results)
     if getattr(args, "show", False):
-        _attach_show_window(pipe, getattr(args, "projection", False))
+        _attach_show_window(pipe, getattr(args, "projection", False), getattr(args, "game", False))
     try:
         summary = pipe.run()
     finally:
@@ -103,15 +106,16 @@ def cmd_replay(args: argparse.Namespace) -> int:
     return 0
 
 
-def _attach_show_window(pipe, projection: bool = False) -> None:  # type: ignore[no-untyped-def]
+def _attach_show_window(pipe, projection: bool = False, game: bool = False) -> None:  # type: ignore[no-untyped-def]
     """Diagnostic window: skeleton, fused label, score panel, SOAP chip and the projection preview
-    (germ graphics composited on the camera image). Esc stops the run, P toggles the projection."""
+    (germ graphics composited on the camera image). Esc stops the run, P toggles the projection.
+    ``game``: the clean game view instead (camera picture plus graphics at 2x, no skeleton, text or panels)."""
     import cv2
 
     from convergent.vision.overlays import ProjectionPreview, draw_score_panel, render_overlay
 
     preview = ProjectionPreview(pipe)
-    if projection:
+    if projection or game:
         pipe.scene.enabled = True
     orig = pipe.process_frame
     stamps: list[float] = []
@@ -122,11 +126,17 @@ def _attach_show_window(pipe, projection: bool = False) -> None:  # type: ignore
         del stamps[:-30]
         fps = (len(stamps) - 1) / max(stamps[-1] - stamps[0], 1e-6) if len(stamps) > 5 else 0.0
         warn = "  (LOW: recognition degrades below ~12 fps, see docs/PROJECTION_GRAPHICS.md)" if 0 < fps < 12 else ""
-        img = render_overlay(frame, r.hands, [f"fused={r.fused.native_label or r.fused.status.value} conf={r.fused.confidence}",
-                                              f"pipeline {fps:.1f} fps{warn}", "Esc = stop and print score   P = projection on/off"])
-        img = preview.compose(img, r.render)
-        if r.score is not None:
-            draw_score_panel(img, r.score, soap=r.soap)
+        if game:
+            big = frame.image if frame.image.shape[1] > 700 else cv2.resize(frame.image, None, fx=2, fy=2, interpolation=cv2.INTER_LINEAR)
+            if not pipe.mapper.ready:  # no projector calibrated: draw the graphics at the window's own size, so they stay sharp
+                pipe.cfg.projector.logical_height, pipe.cfg.projector.logical_width = big.shape[:2]
+            img = preview.compose(big.copy(), r.render, clean=True)
+        else:
+            img = render_overlay(frame, r.hands, [f"fused={r.fused.native_label or r.fused.status.value} conf={r.fused.confidence}",
+                                                  f"pipeline {fps:.1f} fps{warn}", "Esc = stop and print score   P = projection on/off"])
+            img = preview.compose(img, r.render)
+            if r.score is not None:
+                draw_score_panel(img, r.score, soap=r.soap)
         cv2.imshow("convergent diagnostics", img)
         preview.bind()
         key = cv2.waitKey(1) & 0xFF
@@ -143,11 +153,11 @@ def cmd_camera(args: argparse.Namespace) -> int:
     from convergent.pipeline import Pipeline
 
     cfg = _config(args, {"source": {"kind": "webcam", "device_index": args.device, "max_frames": args.max_frames, "target_fps": args.fps},
-                         "results_dir": args.results_dir})
+                         "results_dir": args.results_dir, "wash_sessions": {"enabled": bool(args.auto_wash)}})
     client = _backend_client(args, cfg)
     pipe = Pipeline(cfg, backend_client=client, deterministic=False, save_results=args.save_results)
     if args.show:
-        _attach_show_window(pipe, getattr(args, "projection", False))
+        _attach_show_window(pipe, getattr(args, "projection", False), getattr(args, "game", False))
     try:
         summary = pipe.run()
     except KeyboardInterrupt:  # Ctrl+C outside the frame loop (e.g. while models load)
@@ -271,6 +281,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--json", default=None, help="write the run summary JSON here")
     p.add_argument("--show", action="store_true", help="show the diagnostic overlay window (Esc stops, P toggles projection)")
     p.add_argument("--projection", action="store_true", help="start with the projected game graphics on")
+    p.add_argument("--game", action="store_true", help="with --show: the clean game view (camera picture and game graphics only)")
+    p.add_argument("--auto-wash", action="store_true", help="split the run into washes: one saved record per wash (starts when hands arrive, ends 4 s after they leave)")
     common(p)
     p.set_defaults(func=cmd_replay)
 
@@ -278,6 +290,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--device", type=int, default=0)
     p.add_argument("--show", action="store_true", help="show the diagnostic overlay window (Esc stops, P toggles projection)")
     p.add_argument("--projection", action="store_true", help="start with the projected game graphics on")
+    p.add_argument("--game", action="store_true", help="with --show: the clean game view (camera picture and game graphics only)")
+    p.add_argument("--auto-wash", action="store_true", help="split the run into washes: one saved record per wash (starts when hands arrive, ends 4 s after they leave)")
     common(p)
     p.set_defaults(func=cmd_camera)
 

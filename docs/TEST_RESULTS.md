@@ -355,3 +355,82 @@ is re-created by the first macOS test run and should be committed then.
 **Model v1.0 is frozen as of this commit**: `temporal_v2` (sha256 `f33fdd0d…`), `side_resolver`
 v0.1.0 (sha256 `939ac261…`), the thresholds in `configs/development.yaml` and the acceptance test
 above. Changing any of them means re-agreeing the known answer in `tests/acceptance`.
+
+## 10. Robustness study and light fix (2026-11-14, MacBook Apple M5 Pro)
+
+Model `runs/v2/own_f3` (never saw own round `down3`, METC test subjects held out), full pipeline.
+Own `down3` = 8 clips of one person, so differences under 5 points there are noise. METC-12 = the
+first 12 held-out METC videos, 16,831 frames.
+
+**Where the errors are**
+
+| | Own webcam `down3` | METC-12 (other people, top-down) |
+| --- | --- | --- |
+| Frame accuracy | 62.7% | 77.6% |
+| Wrong step frames that are a confident wrong step | 68% | 41% |
+| Wrong step frames with no hand tracked | 3% | 41% |
+| Step accuracy with 0 / 1 / 2 hands tracked | 53 / 59 / 56% | 51 / 83 / 87% |
+
+On the webcam the model mixes up similar steps (back of hand as backs of fingers, wrist as backs of
+fingers). On METC the tracker losing both hands is the largest single cause.
+
+**Camera orientation** (frames rotated or mirrored before the tracker): METC-12 rotated 180 degrees
+77.5%, mirrored 79.3%, against 77.6%. Own `down3` rotated 90 / 180 / 270 and mirrored: 56.5 / 58.5 /
+62.9 / 62.8% against 62.7%. No change needed.
+
+**Light** (`scripts/benchmark_recognition.py --degrade`, simulated on the tracker's picture). The hand
+tracker is the part that fails. `tracker.light_fix` (`vision/projector_light.py normalise_light`)
+stretches each colour channel to full range when the picture is dark, tinted or flat, and blurs a
+grainy one. A well-lit picture is returned untouched.
+
+| Frame accuracy | Normal | Quarter brightness | Blue-ish | Grainy (noise sd 15) | Flat (20% contrast) |
+| --- | --- | --- | --- | --- | --- |
+| METC-12, fix off | 77.6% | 58.3% | 52.5% | 48.2% | 38.1% |
+| METC-12, fix on | 77.6% | 74.6% | 76.0% | 76.2% | 74.7% |
+| Own `down3`, fix off | 62.7% | 53.0% | 51.7% | 42.7% | 40.1% |
+| Own `down3`, fix on | 62.7% | 62.0% | 61.5% | 57.2% | 59.7% |
+
+Without the gates (fix always on) normal light cost 2.7 points on METC-12, so it only acts when the
+lowest channel's 99th percentile is under 150 (dark), the channels' 99th percentiles differ by more
+than 50 (tinted), the smallest channel range is under 120 (flat) or the median Laplacian is over 12
+(grainy). Normal footage from 5 sources sits at 180 or more, 31 or less, 160 or more and 6 or less.
+Not recoverable in software: an eighth of normal brightness or less (17%, 32% with the fix) and
+overexposure. Also measured on own `down3`: half or third resolution costs nothing, greyscale costs
+16 points, JPEG quality 30 costs 5.
+
+Limits: the bad light is simulated, not a real dark bathroom or the Arducam. With a projector on in
+a dark room, projected light is part of the picture the fix measures.
+
+**Tried, no gain (1 point or less):** average of 4 models, mirror averaging at test time, a sticky
+(HMM) label decoder, lower tracker thresholds (0.3 / 0.3: METC-12 78.3%).
+
+**Game prompt as a prior** (built, measured and REMOVED on 2026-11-14: Andrew chose a game without a
+guide, and without an asked step there is nothing to boost. Kept here because the result stands if a
+guided mode ever returns: the asked step's probability was multiplied by 3.) Full pipeline, `--prompt truth` = the asked step is the step really being done:
+
+| | Frame accuracy | Credited time | Thumb recall | False credit while not washing |
+| --- | --- | --- | --- | --- |
+| Own `down3`, boost off | 62.7% | 52.5% | 0.50 | 0.0 s per 10 s |
+| Own `down3`, child follows the game | 71.3% | 63.2% | 0.72 | 0.0 |
+| Own `down3`, clips ignore the game's prompts | 62.4% | 51.6% | 0.48 | 0.0 |
+| METC-12, boost off | 77.6% | 77.4% | 0.53 | 1.76 |
+| METC-12, child follows the game | 81.7% | 83.7% | 0.62 | 1.87 |
+| METC-12, the game's own prompts (people not guided by it) | 78.3% | 78.7% | 0.57 | 1.73 |
+
+Simulated on saved probabilities before building: when the prompt runs 1 to 2 s ahead of the person,
+the gain on held-out METC step accuracy shrinks from 4.5 to about 3 points.
+
+**False tiny hands** (`tracker.min_hand_size: 0.10`, 2026-11-14). In a 211 s live run the detector took
+a small background object for a hand on 706 frames (47 s): about 5% of the picture, not moving. The
+features are scaled by hand size, so its jitter looked like motion and the model called it fingertip
+rubbing at 0.95 for 32 s. Real hands are never that small: the larger side of the hand's outline box
+is 0.12 of the picture or more in own rounds, METC and Kaggle (0.1 percentile; under 0.10 on 0.00 to
+0.03% of hands). Detections under 0.10 are now dropped. Replaying that run's saved hand points without
+them, the frames called fingertip rubbing fall from 46 s to 12 s and thumb rubbing from 9 s to 3 s.
+Benchmarks on own `down3` and METC-12 do not contain such hands.
+
+**Acceptance test on macOS.** `tests/acceptance/...::test_events_in_who_order_with_thumb_missing`
+fails with `tracker.backend: solutions` (the macOS default since commit 4fcff9f): three extra events
+of 0.5 to 0.7 s (palm, interlaced, palm) appear at 53 to 56 s of the sample clip. With
+`tracker.backend: tasks` the six known events are reproduced exactly. Not changed: the known answer
+is frozen. Full suite on this Mac: 195 passed, that one failed.

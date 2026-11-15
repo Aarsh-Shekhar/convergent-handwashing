@@ -145,6 +145,56 @@ One pair of live runs shows the direction, not an exact size. It matches the sim
    `green_leak`. The guess is 0.10. A wrong leak cost accuracy at 2x brightness in tests.
 3. Set `simulate_feedback: 0` (the real projector now does it) and `green_only: true`.
 
+## Coverage scene: germs all over the hands (2026-11-14)
+
+`projector.graphics.mode: coverage` (the default in `configs/development.yaml`; `dinos` keeps the first
+scene above). Chosen by Andrew after trying a guided "one step at a time" game live: the product shows
+parents how long each part of the hand was washed and children wash in any order, so there is no guide.
+
+`projection/coverage.py CoverageScene`:
+
+* 20 germs on the side of each hand that faces the camera, from wrist to fingertips, in three kinds
+  (jelly, spiky, fuzzy). Each sits on one spot (a fixed mix of the 21 hand points, so it bends with
+  the hand) and belongs to the wash step that cleans that spot. Palm side and back side are two sets:
+  the palm's germs go with "palm to palm", the same spots on the back with "back of hand".
+* As a step's timer fills toward 3 s its germs pop one by one into bubbles. What is left on the hands
+  is what has not been washed long enough: the same record the wash score gives the app.
+* Germs drift, bounce and blink. The germs of the step being washed look scared and shake. Clean
+  spots twinkle now and then.
+* A slim bar at the top replaces the bottom strip (which covered the hands): germs left (of 80: two
+  hands, two sides), one ring per step that fills over its 3 s, turns solid when done and shows the
+  seconds washed so far, five stars.
+
+Try it: `camera --device 1 --show --game`. The game window draws the graphics as solid stickers
+(vivid on a screen) at the window's own size. A projector can only add light, so `render_canvas`
+without `transparent` still gives light on black, and the same sheets work for both: the dark edge
+around each germ covers the picture on a screen and adds nothing as light.
+
+Art: `scripts/make_sprites.py` draws the sheets in `src/convergent/projection/assets/` (per germ an
+idle, blink and scared loop; a burst; a twinkle; 730 KB). They are stored without colour and tinted
+when drawn: three colours with white eyes normally, pure green under `green_only`.
+
+Smoothness, measured on 6 saved live runs (6,935 frames, same mechanics as the first build of this scene):
+
+| | First scene (dinos) | Coverage scene |
+| --- | --- | --- |
+| Germs drawn while a hand was seen in the last 0.4 s | 96.3% of frames | 99.9% (a lost hand is held 0.4 s and faded) |
+| Jitter of a slow hand's germs | raw tracker output | x0.63 of raw (One Euro filter, 1.8 px median lag while moving) |
+
+Shown progress rises at most 1.0 per second, so germs never all pop in one frame. Germ size comes from
+the hand's outline box, so it does not collapse when the hands are seen end-on.
+
+Tried and removed the same day (kept in `runs/removed_guided/`, not in the repo): a guided game that
+asked for one step at a time, with bubbles and a progress ring around the hands while scrubbing, and
+a recognizer boost for the asked step (`docs/TEST_RESULTS.md` section 10). Andrew's live verdict: no
+guide wanted, the ring appeared when the hands were only close together, and the bottom strip covered
+the hands.
+
+Limits: looks are judged on the laptop window only. `flip_facing` must match the camera (palm/back
+follows the tracker's left/right); it was checked on one webcam clip. While the hands are clasped the
+tracker often loses them, and the germs fade with it until the hands open again. The Pi still redraws
+at the rate commands arrive (15 per second).
+
 ## Known limits
 
 * The dinos sit on MediaPipe's hand outline; when the tracker loses a hand the germs vanish

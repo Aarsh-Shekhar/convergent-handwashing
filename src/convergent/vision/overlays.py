@@ -192,11 +192,22 @@ class ProjectionPreview:
             except cv2.error:
                 pass
 
-    def compose(self, img: np.ndarray, render: Any) -> np.ndarray:
-        """Blend the rendered canvas over the camera image; inset the raw canvas bottom-left."""
+    def compose(self, img: np.ndarray, render: Any, clean: bool = False) -> np.ndarray:
+        """Blend the rendered canvas over the camera image; inset the raw canvas bottom-right.
+        ``clean`` (game view): only the picture and the graphics, drawn as solid stickers instead of added light
+        (vivid on a screen; a projector can only add light), no inset and no button."""
         from convergent.pi_agent.renderer import render_canvas
 
         h, w = img.shape[:2]
+        if render is not None and clean:
+            layer = render_canvas(render, transparent=True)
+            if self.pipe.mapper.ready and self.pipe.mapper._Hinv is not None:
+                layer = cv2.warpPerspective(layer, self.pipe.mapper._Hinv, (w, h))
+            elif layer.shape[:2] != (h, w):
+                layer = cv2.resize(layer, (w, h), interpolation=cv2.INTER_LINEAR)
+            a = layer[..., 3:4].astype(np.uint16)
+            a += a > 127  # 0..256, so the blend is a shift instead of a division
+            return ((img.astype(np.uint16) * (256 - a) + layer[..., 2::-1].astype(np.uint16) * a) >> 8).astype(np.uint8)
         if render is not None:
             canvas = cv2.cvtColor(render_canvas(render), cv2.COLOR_RGB2BGR)
             if self.pipe.mapper.ready and self.pipe.mapper._Hinv is not None:
@@ -210,6 +221,8 @@ class ProjectionPreview:
             img[y0i : y0i + ih, x0i : x0i + iw] = cv2.resize(canvas, (iw, ih))
             cv2.rectangle(img, (x0i, y0i), (x0i + iw, y0i + ih), (200, 200, 200), 1)
             _text(img, "projector canvas", (x0i + 2, y0i - 4), 0.4, (200, 200, 200))
+        if clean:
+            return img
         x0, y0, x1, y1 = self.BUTTON
         cv2.rectangle(img, (x0, y0), (x1, y1), (40, 120, 40) if self.on else (60, 60, 60), -1)
         cv2.rectangle(img, (x0, y0), (x1, y1), _GREEN if self.on else _GREY, 1)

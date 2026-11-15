@@ -7,7 +7,12 @@ import numpy as np
 from convergent.common.config import PipelineConfig, TrackerConfig, resolve_path
 from convergent.pipeline import Pipeline
 from convergent.vision.hand_tracker import HandTracker, ScriptedBackend
-from convergent.vision.projector_light import DEFAULT_FIT, fit_green, remove_green_light
+from convergent.vision.projector_light import (
+    DEFAULT_FIT,
+    fit_green,
+    normalise_light,
+    remove_green_light,
+)
 from tests.conftest import make_frame, synthetic_hand
 
 FIT = (0.42, 0.63, -3.0)
@@ -79,7 +84,8 @@ def test_tracker_filters_its_own_picture_only():
 
 
 def pipe_with(graphics: dict) -> tuple[Pipeline, SpyBackend]:
-    cfg = PipelineConfig.load(resolve_path("configs/development.yaml"), {"projector": {"graphics": {"enabled": True, "show_ui": False, **graphics}}})
+    cfg = PipelineConfig.load(resolve_path("configs/development.yaml"), {"projector": {"graphics": {"enabled": True, "show_ui": False, "mode": "dinos", **graphics}},  # the first scene always draws germs on the test hand
+                                                                         "tracker": {"light_fix": False}})  # the test frame is near black: keep the light fix out of these checks
     spy = SpyBackend([[(synthetic_hand(0.5, 0.5, scale=0.3), "Left", 0.95)]])
     return Pipeline(cfg, tracker=HandTracker(cfg.tracker, spy)), spy
 
@@ -107,3 +113,64 @@ def test_simulated_projection_reaches_the_tracker_and_green_only_removes_it():
             assert excess_green(spy.seen[2]) < 12  # only faint light is left (below what the filter can tell from skin)
         else:
             assert excess_green(spy.seen[2]) > 100  # germs from the previous render are on the hand in the tracker's picture
+
+
+# ---------------------------------------------------------------- light fix (tracker picture in bad light)
+def lit_scene(shape: tuple[int, int] = (120, 160)) -> np.ndarray:
+    """A smooth, well-exposed BGR picture: every channel spans about 20..235."""
+    h, w = shape
+    y, x = np.mgrid[0:h, 0:w].astype(np.float32)
+    b = 20 + 215 * x / (w - 1)
+    g = 20 + 215 * y / (h - 1)
+    r = 20 + 215 * (x / (w - 1) + y / (h - 1)) / 2
+    return np.rint(np.stack([b, g, r], axis=-1)).astype(np.uint8)
+
+
+def _bad_light(kind: str) -> np.ndarray:
+    f = lit_scene().astype(np.float32)
+    if kind == "dark":
+        f *= 0.25
+    elif kind == "tinted":
+        f *= np.array([1.2, 1.0, 0.7], np.float32)
+    elif kind == "flat":
+        f = 128 + (f - 128) * 0.4
+    return np.clip(np.rint(f), 0, 255).astype(np.uint8)
+
+
+def test_light_fix_returns_a_good_picture_untouched():
+    img = lit_scene()
+    assert normalise_light(img) is img
+
+
+def test_light_fix_restores_the_full_range_in_dark_tinted_and_flat_light():
+    for kind in ("dark", "tinted", "flat"):
+        out = normalise_light(_bad_light(kind))
+        px = out.reshape(-1, 3)
+        assert np.percentile(px, 99, axis=0).min() >= 235, kind
+        assert np.percentile(px, 1, axis=0).max() <= 20, kind
+        assert normalise_light(out) is out, kind  # a second pass has nothing left to fix
+
+
+def test_light_fix_blurs_a_grainy_picture():
+    import cv2
+
+    def grain(im: np.ndarray) -> float:
+        return float(np.median(np.abs(cv2.Laplacian(cv2.cvtColor(im, cv2.COLOR_BGR2GRAY), cv2.CV_32F))))
+
+    noisy = np.clip(lit_scene().astype(np.float32) + np.random.default_rng(0).normal(0, 15, (120, 160, 3)), 0, 255).astype(np.uint8)
+    out = normalise_light(noisy)
+    assert grain(noisy) > 20 and grain(out) < 12
+
+
+def test_tracker_applies_the_light_fix_only_when_switched_on():
+    for on in (False, True):
+        frame = make_frame(w=160, h=120)
+        frame.image[:] = _bad_light("dark")
+        spy = SpyBackend([])
+        HandTracker(TrackerConfig(light_fix=on), spy).detect(frame)
+        assert (spy.seen[-1].max() > 200) == on and frame.image.max() < 70  # the frame itself stays dark
+
+
+def test_light_fix_leaves_a_picture_without_any_contrast_alone():
+    blank = np.full((120, 160, 3), 30, np.uint8)  # lens covered: nothing to stretch
+    assert normalise_light(blank) is blank

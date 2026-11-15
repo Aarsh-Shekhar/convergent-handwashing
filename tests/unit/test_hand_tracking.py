@@ -110,3 +110,13 @@ def test_malformed_landmarks_are_skipped():
     backend = ScriptedBackend([[(np.zeros((20, 3)), "Left", 0.9)]])
     th = HandTracker(TrackerConfig(), backend).detect(make_frame())
     assert th.num_hands == 0
+
+
+def test_a_tiny_false_hand_is_dropped():
+    """A background object the detector takes for a hand is far smaller than any real hand (live run 2026-11-14:
+    5% of the picture, read as fingertip rubbing for 32 s). Real hands are 12% or more in every dataset."""
+    script = [[(synthetic_hand(0.7, 0.6, scale=0.05), "Left", 0.9), (synthetic_hand(0.4, 0.6, scale=0.3), "Right", 0.9)]]
+    out = HandTracker(TrackerConfig(), ScriptedBackend(script)).detect(make_frame())
+    assert out.num_hands == 1
+    keep_all = HandTracker(TrackerConfig(min_hand_size=0.0), ScriptedBackend(script)).detect(make_frame())
+    assert keep_all.num_hands == 2

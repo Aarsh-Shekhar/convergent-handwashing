@@ -153,26 +153,32 @@ Sample clip result: 4 of 7 steps found (no palm, thumb or wrist), 49.6 s total, 
 
 Green fix (2026-11-14, `projector.graphics.green_only`, off by default): hand graphics in the projector's green light only, and `vision/projector_light.py` removes that light from the tracker's picture (`HandTracker.image_filter`, set by the pipeline). Simulated projection (`simulate_feedback: 1.0`): own `down3` frame accuracy 63% no projection, 54% today's colours, 61% green fix; held-out METC 78 / 68 / 76%. Red-only tracking was tested and dropped (about 15 points lower even with the projector off). `green_fit` is per camera (`scripts/fit_green.py`), `green_leak` is a guess until hardware day. Do not raise `lead_ms` without measuring: straight-line prediction made scrubbing error worse on saved live runs (15 mm vs 12 mm at 67 ms).
 
+Coverage scene (2026-11-14, `projector.graphics.mode: coverage`, `dinos` = the first scene): `projection/coverage.py CoverageScene` puts 20 germs (three kinds) on the visible side of each hand, each tied to the wash step that cleans its spot, with separate palm and back sets. A step's germs pop one by one as its 3 s fill. No guide, any order: Andrew's decision after trying a guided game live (removed, copy in `runs/removed_guided/`). A slim bar at the top shows germs left, a ring per step and stars. Sheets come from `scripts/make_sprites.py` into `projection/assets/`, stored without colour and tinted (pure green under `green_only`). A lost hand is held 0.4 s. Game window with solid stickers: `camera --show --game`. `flip_facing` must match the camera.
+
+Auto wash sessions (2026-11-14, `wash_sessions.enabled`, `camera --auto-wash`, off by default): `scoring/wash_session.py` starts a wash after 0.5 s of hands and ends it 4 s after they leave. Each wash gives a `WashRecord` (seconds per part, score, quality, model version) in `runs/<session>/washes.jsonl`, `RunSummary.washes`, `Pipeline.on_wash` and the `wash` field of the `live` message, then score, events, evidence and germs are reset. Format in `docs/GAMIFICATION_HANDOFF.md`.
+
+False tiny hands (2026-11-14, `tracker.min_hand_size: 0.10`): detections whose outline box is under 10% of the picture are dropped. A background object taken for a hand earned 32 s of fingertip credit in a live run; real hands are 12% or more in all data.
+
+Light fix (2026-11-14, `tracker.light_fix`): `vision/projector_light.py normalise_light` cleans the tracker's picture when it is dark, tinted, flat or grainy, and leaves a well-lit picture alone. MediaPipe is the part that fails in bad light. Numbers in `docs/TEST_RESULTS.md` section 10. `scripts/benchmark_recognition.py --degrade dark|blue|flat|grainy` simulates bad light.
+
 ## Known limits (state these honestly)
 
 - The score and coverage measure recognized motion time. They are not proof of clean hands, soap contact or microbial removal. The SOAP checkmark (2026-11-14, `regions/foam.py` SoapDetector, `soap:` config) is a brightness heuristic for the UI and the `live` feed only; it never touches score or evidence.
 - Region coverage needs resolved sides; the side resolver provides them (sample clip: 0.40 -> 0.6). Its accuracy on our camera is unmeasured; `side_resolver.mirrored` must match the mount.
 - Recognition accuracy has only been measured on public top-down sink videos of adults (METC, Kaggle). It has not been measured on Andrew's webcam, the faucet camera or children's hands. Passing tests is software verification, not real-world accuracy.
-- One pipeline run is one session. There is no automatic per-child session lifecycle and no child identity in the schema. `WashScorer.reset()` is ready for future lifecycle work.
+- One pipeline run is one session unless `wash_sessions.enabled` splits it into washes (see below). There is no child identity in the schema: pairing a wash with a child is the app's job.
 - `live` WebSocket messages are published since 2026-11-14 (`POST /api/v1/sessions/{id}/live` -> `/ws/v1/observations`, 5 Hz + every event). `Pipeline.on_frame` remains the in-process feed.
 
 ## Hardware (planned, not arrived)
 
-The repo docs describe a Raspberry Pi 3 A+. The actual plan uses a Raspberry Pi Zero 2 W:
+Parts list (Andrew, 2026-11-14). An earlier note here said Pi Zero 2 W, which was wrong:
 
-- 512 MB RAM, 2.4 GHz Wi-Fi only;
-- mini 22-pin CSI camera connector;
-- mini-HDMI to the projector;
-- Arducam B0176 5 MP camera;
-- RIF6 Cube projector;
-- power bank.
+- Raspberry Pi 3 Model A+ (512 MB RAM, 2.4 and 5 GHz Wi-Fi, full-size HDMI), shipping pending. Backup: Raspberry Pi 3 Model B (1 GB RAM, 2.4 GHz Wi-Fi, Ethernet).
+- Arducam B0176 5 MP camera (OV5647, motorized focus from 8 cm, field of view 54 x 44 degrees: 61 x 48 cm at 60 cm).
+- RIF6 Cube projector (DLP, 854x480, 50 lumens, mini-HDMI in). Throw ratio 1.99: the picture is half as wide as the distance, 15 x 8 cm at 30 cm and 30 x 17 cm at 60 cm. It must sit about 60 cm above the hands, not on the faucet.
+- onn. 10,000 mAh power bank, HDMI-A to mini-HDMI cable, 32 GB microSD, foam gasket tape.
 
-Pi docs and runbooks (`docs/PI_SETUP.md`, `docs/HARDWARE_DAY_RUNBOOK.md`) still need updating for the Zero 2 W. Keep heavy recognition on the laptop and the Pi agent lightweight (camera, JPEG over WebSocket port 8765, render commands back to HDMI).
+Keep heavy recognition on the laptop and the Pi agent lightweight (camera, JPEG over WebSocket port 8765, render commands back to HDMI). For hardware day: lock the Pi camera's exposure and white balance (`pi_agent/camera.py` leaves them on auto, so the projector's light would make the camera re-adjust), measure the camera-to-projector lag (estimate 150 to 250 ms), and calibrate at hand height.
 
 ## Next work (suggested order)
 

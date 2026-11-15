@@ -57,6 +57,10 @@ class TrackerConfig(_Cfg):
     # produces a NON-mirrored image, so by default the raw label is swapped to obtain the
     # anatomical side. Verify on hardware (docs/MODEL_INTEGRATION.md "Handedness").
     swap_handedness: bool = True
+    light_fix: bool = False  # clean the tracker's picture when it is dark, tinted, flat or grainy (vision/projector_light.py normalise_light)
+    # Drop "hands" whose outline box is smaller than this share of the picture (larger side). Real hands are 0.12 or more in
+    # METC, Kaggle and own rounds (0.1 percentile); a background object taken for a hand was 0.05 and earned 32 s of credit.
+    min_hand_size: float = 0.10
     identity_max_jump: float = 0.35  # normalized distance for track association
     identity_max_gap_s: float = 0.5
     handedness_trust_threshold: float = 0.8
@@ -164,6 +168,16 @@ class SoapConfig(_Cfg):
     ema_s: float = 0.5          # smoothing time constant
 
 
+class WashSessionsConfig(_Cfg):
+    """Split a camera run into washes (scoring/wash_session.py): one saved record per wash. Off by default, so a replay,
+    a benchmark or the acceptance test is still one session."""
+
+    enabled: bool = False
+    start_after_s: float = 0.5   # a hand tracked this long starts a wash
+    end_after_s: float = 4.0     # no hand for this long ends it
+    min_duration_s: float = 3.0  # shorter and nothing washed: a walk-by, no record
+
+
 class ScoringConfig(_Cfg):
     """Wash score rules (see src/convergent/scoring/wash_score.py). First guesses: tune on real washes."""
 
@@ -211,6 +225,11 @@ class GraphicsConfig(_Cfg):
     green_fit: tuple[float, float, float] = (0.416, 0.633, -3.2)  # camera green = a*R + b*B + c (scripts/fit_green.py; Mac webcam)
     green_leak: tuple[float, float] = (0.10, 0.10)  # projector green seen by the camera's red / blue (measure on hardware day)
     simulate_feedback: float = 0.0  # testing without a projector: add the previous render to the tracker's picture at this strength
+    # scene (which hand graphics): coverage = germs over the whole hand that go down as each part is washed, slim top bar
+    # (projection/coverage.py); dinos = the first scene, germ-dinos per region and a bottom strip (projection/scene.py)
+    mode: Literal["coverage", "dinos"] = "dinos"
+    hold_s: float = 0.4          # keep a lost hand's graphics this long, fading out
+    flip_facing: bool = False    # palm/back come out reversed when the tracker's left/right is reversed
 
 
 class ProjectorConfig(_Cfg):
@@ -244,6 +263,7 @@ class PipelineConfig(_Cfg):
     regions: RegionsConfig = Field(default_factory=RegionsConfig)
     soap: SoapConfig = Field(default_factory=SoapConfig)
     scoring: ScoringConfig = Field(default_factory=ScoringConfig)
+    wash_sessions: WashSessionsConfig = Field(default_factory=WashSessionsConfig)
     projector: ProjectorConfig = Field(default_factory=ProjectorConfig)
     backend: BackendClientConfig = Field(default_factory=BackendClientConfig)
     labels_path: str = "configs/labels.yaml"

@@ -12,6 +12,8 @@ tracker:
   min_tracking_confidence: 0.5
   model_complexity: 1
   swap_handedness: true    # faucet camera image is NOT mirrored -> swap MediaPipe's selfie-convention label
+  light_fix: true          # clean the tracker's picture when it is dark, tinted, flat or grainy; a well-lit picture is left alone (docs/TEST_RESULTS.md section 10)
+  min_hand_size: 0.10      # drop false "hands" smaller than this share of the picture; real hands are 0.12 or more in all our data
 handhygiene:
   enabled: true
   model_path: models/handhygiene/rf_10102024.numpy-forest.npz   # validated conversion of upstream RF (sklearn 1.0.2)
@@ -102,6 +104,8 @@ projector:
     green_fit: [0.416, 0.633, -3.2]   # camera green = a*R + b*B + c, Mac webcam; refit for the Arducam (scripts/fit_green.py)
     green_leak: [0.10, 0.10]          # projector green seen by the camera's red / blue: guess, measure on hardware day
     simulate_feedback: 0.0            # >0: add the last render to the tracker's picture (test without a projector)
+    mode: coverage         # coverage = germs over the whole hand that go down as each part is washed (projection/coverage.py) | dinos = the first scene (projection/scene.py)
+    flip_facing: false     # set true if germs show on the wrong side of the hand (palm/back follows the tracker's left/right). Checked on data/own/down1/none.mp4 with the solutions backend, 2026-11-14. Re-check on the faucet camera
 backend:
   enabled: false
   base_url: http://127.0.0.1:8000

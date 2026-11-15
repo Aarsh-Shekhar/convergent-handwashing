@@ -13,11 +13,15 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 
+import cv2
 import numpy as np
 
 DEFAULT_FIT = (0.416, 0.633, -3.2)  # Mac webcam, own round down1 (2026-11-14); refit for the Arducam
 DEFAULT_LEAK = (0.10, 0.10)  # projector green seen by the camera's red / blue; measure on hardware day
 _ON, _RAMP = 10.0, 15.0  # extra green below _ON counts as noise; full repair from _ON + _RAMP
+# light fix gates, from 61 videos of 5 sources (2026-11-14). Normal footage: lowest channel p99 >= 180,
+# p99 spread <= 31 (a few Kaggle sinks 72), smallest channel range >= 160, grain <= 6.
+_DARK, _TINT, _FLAT, _GRAIN = 150.0, 50.0, 120.0, 12.0
 
 
 def remove_green_light(bgr: np.ndarray, fit: Iterable[float] = DEFAULT_FIT, leak: Iterable[float] = DEFAULT_LEAK) -> np.ndarray:
@@ -40,3 +44,19 @@ def fit_green(frames: Iterable[np.ndarray]) -> tuple[float, float, float]:
     px = px[ok]
     coef, *_ = np.linalg.lstsq(np.column_stack([px[:, 2], px[:, 0], np.ones(len(px))]), px[:, 1], rcond=None)
     return float(coef[0]), float(coef[1]), float(coef[2])
+
+
+def normalise_light(bgr: np.ndarray) -> np.ndarray:
+    """Clean-up of the TRACKER's picture in bad light (BGR uint8 in and out). A well-lit picture comes back
+    as the same object. Grainy: 5x5 blur. Dark, tinted or flat: each colour channel's 1st..99th percentile is
+    stretched to 0..255. MediaPipe loses hands in such pictures (held-out METC frame accuracy 48 to 58%
+    instead of 78%); with this it is 75 to 76%. Always on it costs 2.7 points in normal light, hence the gates."""
+    out = bgr
+    if np.median(np.abs(cv2.Laplacian(cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY), cv2.CV_32F))) > _GRAIN:
+        out = cv2.GaussianBlur(bgr, (5, 5), 0)
+    sub = out[::4, ::4].reshape(-1, 3).astype(np.float32)
+    lo, hi = np.percentile(sub, 1, axis=0), np.percentile(sub, 99, axis=0)
+    span = hi - lo
+    if span.min() >= 8 and (hi.min() < _DARK or hi.max() - hi.min() > _TINT or span.min() < _FLAT):  # under 8: no picture to stretch
+        out = np.clip((out.astype(np.float32) - lo) * (255.0 / span), 0, 255).astype(np.uint8)
+    return out
