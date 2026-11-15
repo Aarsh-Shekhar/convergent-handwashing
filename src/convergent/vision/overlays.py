@@ -48,7 +48,7 @@ def render_overlay(frame: FramePacket, hands: TrackedHands, extra_lines: list[st
              f"hands={hands.num_hands} tracker={hands.tracker_id} {hands.processing_time_ms:.1f}ms"]
     if extra_lines:
         lines.extend(extra_lines)
-    y = 18
+    y = 54  # below the projection button
     for line in lines:
         cv2.putText(img, line, (8, y), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 3, cv2.LINE_AA)
         cv2.putText(img, line, (8, y), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1, cv2.LINE_AA)
@@ -164,7 +164,7 @@ class ProjectionPreview:
     camera view (additive, like light on skin) plus a small inset of the raw canvas (what the Pi
     sends to the projector). An on-screen button and the P key toggle the graphics."""
 
-    BUTTON = (10, 60, 230, 92)  # x0, y0, x1, y1 in window px
+    BUTTON = (6, 6, 226, 34)  # x0, y0, x1, y1 in window px: top-left corner, the debug text starts below it
 
     def __init__(self, pipe: Any, window: str = "convergent diagnostics") -> None:
         self.pipe, self.window = pipe, window

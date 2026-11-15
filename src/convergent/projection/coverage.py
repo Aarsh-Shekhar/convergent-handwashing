@@ -157,7 +157,7 @@ class CoverageScene(GermScene):
 
     def _bar(self, score: object) -> RenderItem:
         w, _h = self.canvas
-        width = min(w - 40.0, max(0.48 * w, 560.0))
+        width = min(w - 40.0, max(0.58 * w, 560.0))
         steps = {s.technique: s for s in score.steps}  # type: ignore[attr-defined]
         return RenderItem("hud", x=(w - width) / 2, y=0.02 * w, size=width, label=str(self.germs_left), progress=score.stars / 5,  # type: ignore[attr-defined]
                           points=[[round(min(1.0, steps[s].seconds / max(score.step_min_s, 1e-6)), 3), round(steps[s].seconds, 1)] for s in STEPS],  # type: ignore[attr-defined]

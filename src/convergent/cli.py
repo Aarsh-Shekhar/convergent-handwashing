@@ -112,7 +112,12 @@ def _attach_show_window(pipe, projection: bool = False, game: bool = False) -> N
     ``game``: the clean game view instead (camera picture plus graphics at 2x, no skeleton, text or panels)."""
     import cv2
 
-    from convergent.vision.overlays import ProjectionPreview, draw_score_panel, render_overlay
+    from convergent.vision.overlays import (
+        ProjectionPreview,
+        draw_score_panel,
+        draw_soap_chip,
+        render_overlay,
+    )
 
     preview = ProjectionPreview(pipe)
     if projection or game:
@@ -135,7 +140,10 @@ def _attach_show_window(pipe, projection: bool = False, game: bool = False) -> N
             img = render_overlay(frame, r.hands, [f"fused={r.fused.native_label or r.fused.status.value} conf={r.fused.confidence}",
                                                   f"pipeline {fps:.1f} fps{warn}", "Esc = stop and print score   P = projection on/off"])
             img = preview.compose(img, r.render)
-            if r.score is not None:
+            if preview.on:  # the game's top bar shows the times now: only the SOAP chip stays on the right
+                if r.soap is not None:
+                    draw_soap_chip(img, r.soap, img.shape[1] - 8, 24)
+            elif r.score is not None:
                 draw_score_panel(img, r.score, soap=r.soap)
         cv2.imshow("convergent diagnostics", img)
         preview.bind()

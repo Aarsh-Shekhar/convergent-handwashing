@@ -248,3 +248,12 @@ def test_the_seconds_in_a_ring_are_big_enough_to_read():
 
     ys, xs = np.nonzero(np.abs(bar([19.0] + [0.0] * 6) - bar([0.0] * 7)).sum(axis=2) > 60)
     assert np.ptp(ys) + 1 >= 10 and np.ptp(xs) + 1 >= 22  # "19s": digits at least 10 px tall on a 620 px bar
+
+
+def test_top_bar_is_bigger_in_the_game_window_and_unchanged_on_the_projector():
+    def width(canvas: tuple[int, int]) -> float:
+        sc = CoverageScene(GraphicsConfig(enabled=True, show_ui=True), canvas=canvas)
+        return next(i for i in play(sc, 0.2, lambda t: [])[1] if i.shape == "hud").size
+
+    assert width((1280, 854)) >= 0.57 * 1280  # the 2x game window
+    assert width((854, 480)) == 560  # the projector's own canvas
