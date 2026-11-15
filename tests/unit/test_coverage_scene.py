@@ -236,3 +236,15 @@ def test_top_bar_writes_the_seconds_into_each_ring():
     ring7 = slice(435, 480)  # x range of the last ring (150 + 6 * 52 = 462 in bar units, plus the bar's x of 10)
     assert not np.array_equal(a[:, ring7], b[:, ring7]) and np.array_equal(a[:, :400], b[:, :400])  # only that ring changed
     bar([12.3, 45.6, 3.0, 0.4, 100.0, 7.7, 2.9])  # long times must fit without raising
+
+
+def test_the_seconds_in_a_ring_are_big_enough_to_read():
+    from convergent.projection.sprites import draw_hud
+
+    def bar(seconds: list[float]) -> np.ndarray:
+        layer = Image.new("RGBA", (700, 100), (0, 0, 0, 0))
+        draw_hud(layer, 10, 5, 620, [1.0] * 7, seconds, "40", 2)  # all rings full, so only the numbers differ
+        return np.asarray(layer).astype(int)
+
+    ys, xs = np.nonzero(np.abs(bar([19.0] + [0.0] * 6) - bar([0.0] * 7)).sum(axis=2) > 60)
+    assert np.ptp(ys) + 1 >= 10 and np.ptp(xs) + 1 >= 22  # "19s": digits at least 10 px tall on a 620 px bar

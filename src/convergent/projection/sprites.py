@@ -154,15 +154,15 @@ def draw_hud(layer: Image.Image, x: float, y: float, width: float, fractions: li
     key = (round(width), tuple(round(f * 24) for f in fractions), tuple(round(s, 1) for s in seconds), left, stars, tuple(accent))
     bar = _BARS.get(key)
     if bar is None:
-        u = 2 * width / 620.0  # the layout below is in units of a 620 x 74 bar
-        im = Image.new("RGBA", (int(620 * u), int(74 * u)), (0, 0, 0, 0))
+        u = 2 * width / 620.0  # the layout below is in units of a 620 x 82 bar
+        im = Image.new("RGBA", (int(620 * u), int(82 * u)), (0, 0, 0, 0))
         d = ImageDraw.Draw(im)
         d.rounded_rectangle([0, 0, im.width - 1, im.height - 1], radius=im.height // 2, fill=(16, 20, 30, 165))
-        small, big, num = _font(max(6, int(11 * u))), _font(max(8, int(22 * u))), _font(max(6, int(10.5 * u)))
-        d.text((26 * u, 12 * u), left, font=big, fill=(255, 255, 255, 255))
-        d.text((26 * u, 44 * u), "germs left", font=small, fill=(255, 255, 255, 170))
+        small, big, num = _font(max(6, int(11 * u))), _font(max(8, int(22 * u))), _font(max(6, int(14.5 * u)))
+        d.text((26 * u, 15 * u), left, font=big, fill=(255, 255, 255, 255))
+        d.text((26 * u, 48 * u), "germs left", font=small, fill=(255, 255, 255, 170))
         for i, (frac, sec) in enumerate(zip(fractions[:len(_PARTS)], seconds, strict=False)):
-            cx, cy, r, wd = (150 + i * 52) * u, 28 * u, 16 * u, max(2, int(3.5 * u))
+            cx, cy, r, wd = (150 + i * 52) * u, 31 * u, 21 * u, max(2, int(3.5 * u))
             box = [cx - r, cy - r, cx + r, cy + r]
             done = frac >= 1.0
             d.ellipse(box, fill=(*accent, 255) if done else None, outline=(255, 255, 255, 70), width=wd)
@@ -171,9 +171,9 @@ def draw_hud(layer: Image.Image, x: float, y: float, width: float, fractions: li
             txt = f"{sec:.0f}s" if sec >= 9.95 else f"{sec:.1f}"  # seconds washed, also after the step is done
             if sec > 0:
                 d.text((cx - d.textlength(txt, font=num) / 2, cy - 0.62 * num.size), txt, font=num, fill=(16, 20, 30, 255) if done else (255, 255, 255, 240))
-            d.text((cx - d.textlength(_PARTS[i], font=small) / 2, 50 * u), _PARTS[i], font=small, fill=(255, 255, 255, 235 if frac > 0 else 150))
+            d.text((cx - d.textlength(_PARTS[i], font=small) / 2, 58 * u), _PARTS[i], font=small, fill=(255, 255, 255, 235 if frac > 0 else 150))
         for k in range(5):
-            cx, cy, r = (512 + k * 21) * u, 37 * u, 9 * u
+            cx, cy, r = (512 + k * 21) * u, 41 * u, 9 * u
             pts = [(cx + (r if j % 2 == 0 else 0.45 * r) * math.sin(j * math.pi / 5), cy - (r if j % 2 == 0 else 0.45 * r) * math.cos(j * math.pi / 5)) for j in range(10)]
             d.polygon(pts, fill=(255, 210, 70, 255) if k < stars else (255, 255, 255, 60))
         bar = im.resize((im.width // 2, im.height // 2), Image.LANCZOS)
