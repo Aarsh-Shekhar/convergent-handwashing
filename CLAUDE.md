@@ -112,6 +112,17 @@ Training and evaluation commands are in `docs/RECORDING_GUIDE.md`, `scripts/trai
 
 Bryan prefers more subagent use than usual. Delegate research, codebase exploration across several files, and ideation to subagents, and run independent ones in parallel. Don't spawn one when the extra tokens don't save real time or context: a lookup of a known file, a few tool calls, or a file already in context.
 
+Pick the model per agent by how much judgment the task needs:
+- `haiku`: mechanical work, such as finding files or code, listing things, summarizing one known document.
+- `sonnet`: the default for web research, comparing products, ideation, codebase exploration that needs judgment.
+- `opus`: only when a wrong answer is costly or the reasoning is hard: legal or regulatory reading, architecture decisions, tricky debugging.
+
+Research agents return their reports, and the main session saves them to `RESEARCH.md` (rules at its top) with sources, then puts the short takeaways in `NOTES.md`. Parallel agents don't write to the same file directly.
+
+### Teaching Claude Code
+
+Bryan is new to Claude Code and wants to learn from using it. When he uses it badly or inefficiently (too many or unneeded subagents, vague prompts, missing context, a command or feature that would do the job better), say so briefly with the better way. One or two lines, at the end of the answer, not a lecture.
+
 ### Working style for Bryan
 
 - Plain language. Explain technical terms briefly when they first appear.

@@ -1,6 +1,6 @@
 # Project notes
 
-The detailed log behind `CLAUDE.md`: measurements, design decisions with dates, and the next-work list.
+The detailed log behind `CLAUDE.md`: measurements, design decisions with dates, and the next-work list. Full research with sources is in `RESEARCH.md`, and this file keeps the short takeaways.
 
 Upkeep:
 - Add a dated entry when something is built, measured or decided. Put the newest info in the right section, not at the bottom.
@@ -9,13 +9,48 @@ Upkeep:
 
 ## Next work (suggested order)
 
-1. Record more own rounds (`docs/RECORDING_GUIDE.md`), ideally 2 to 3 teammates with a few rounds each and varied technique. Retrain and benchmark with a different person held out. Three rounds of Andrew gave 48% credited time on a held-out round, and the model memorizes the training rounds.
-2. Build a one-motion game demo (germ, instruction, celebration) on top of `WashScore`. Don't re-implement validation in the game layer.
-3. Coaching state machine, session lifecycle (hands arrive or leave), basic XP that does not reward washing extra times.
-4. Parent/admin frontend and child-profile pairing. React + Vite and Supabase have been proposed but not installed.
-5. Hardware testing on the Pi 3 A+ and recording 10 to 20 team washes for evaluation and retraining (label sides are resolved).
+The parent/home version comes first (main audience, decided 2026-11-17). The school/daycare version waits.
+
+1. **Privacy setup, with Andrew and an advisor.** Decide where frames are processed (the Pi 3 A+ is too weak for recognition, but streaming images is the main legal risk), what is stored, and the parent consent flow. See `RESEARCH.md` section C.
+2. **Recognition accuracy.** Record more own rounds (`docs/RECORDING_GUIDE.md`), ideally 2 to 3 teammates with a few rounds each and varied technique. Retrain and benchmark with a different person held out. Three rounds of Andrew gave 48% credited time on a held-out round, and the model memorizes training rounds. Every feature below makes recognition errors more visible.
+3. **Audio coach prototype on the laptop.** Quiet by default, a one-step hint after 4 to 5 s with no recognized step, quiet mode for kids who do 3+ steps unprompted, optional washing song. Build on `WashScore` and events, don't re-implement validation.
+4. **On-device progression on the projector.**
+   - Kid picks their avatar on the projection before washing, which tells the system who is washing at home without biometrics.
+   - A collection or growing character shown at the start and end of each wash.
+   - Surprise unlocks, new germ sets every 1 to 2 weeks, a clean-wash count that never resets (no streaks).
+   - Rewards fade over about 8 to 10 weeks and spoken praise takes over.
+   - Reward step quality, not the number of washes.
+5. **Parent app.**
+   - A simple summary screen first: washes completed, trend, and "parts to practice" only once accuracy allows.
+   - Consent flow (COPPA plus CUBI notice), adult-only accounts, written retention policy.
+   - Web app vs app store: a web app avoids the Texas App Store Act.
+   - React + Vite and Supabase have been proposed but not installed.
+6. **Hardware day** on the Pi 3 A+, and record 10 to 20 team washes for evaluation and retraining.
+7. **Revisit score thresholds.** Kids aged 4 to 6 average 1 to 2 steps, so "finished = 5 of 7" may be out of reach for them.
+
+Deferred, school/daycare version:
+- Class germ jar (shared progress, no child identity) and teacher challenges tied to Texas childcare wash times (26 TAC 746.3417).
+- Class totals only in the teacher view, and classroom sinks instead of restroom sinks.
+
+Parked: motion sensor wake-up. The camera already starts washes (`--auto-wash`). Revisit only if battery life is a problem.
+
+## Findings for ideation (2026-11-17, details in `RESEARCH.md`)
+
+- **Retention ceiling:** no kids' hygiene gadget has shown engagement beyond about 2 months, and gains fade once the device is removed. Plan to measure 8-week use ourselves.
+- **Quality, not frequency:** the closest study (day care sink animation) raised soaping time 62% but not how often kids washed. Footprints and arrows to the sink raised how often (4% to 74%).
+- **Market gap:** competitors show rewards and progress on a phone. None shows long-term progress on the device. The phone requirement was the top barrier in a school study (29% never connected).
+- **What lasts:** a growing character, rotating content, variable or surprise rewards, and an involved parent or teacher. Fixed promised rewards and losable streaks are risky. A tracking error that breaks a streak upsets kids.
+- **Coaching:** hint only after a wait, one step at a time, 3 to 5 words for ages 4 to 6, phrased forward ("Now thumbs!"), never "you missed". Kids stop trusting a coach that's wrong. Praise the specific action, not the kid.
+- **Rewards:** low risk for handwashing (kids don't already enjoy it). Surprise beats promise. Fade after about 2 months (habit median 59 to 66 days).
+- **Over-engagement:** cap the post-wash play (Philips's Sparkly delayed bedtimes).
+- **Privacy is a design constraint:** in a bathroom, sending images out is the biggest legal risk. Store derived wash records only.
 
 ## Log
+
+### 2026-11-17: gameplay loop research, parent version first
+
+- Three research agents: comparable products, child coaching and rewards, US/Texas data rules. Full reports in `RESEARCH.md`, takeaways above.
+- Decisions: parent/home version first, school version deferred, motion sensor parked.
 
 ### 2026-11-17: Windows setup (Bryan)
 
