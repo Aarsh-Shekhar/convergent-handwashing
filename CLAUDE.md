@@ -1,205 +1,122 @@
 # Convergent Handwashing
 
-A faucet-mounted handwashing trainer for children ages 4 to 10, built by the Texas Convergent tech team. A camera watches the child's hands. A laptop recognizes the washing motions and scores them. A projector shows guidance and germs that disappear as the child washes.
+A faucet-mounted handwashing trainer for children ages 4 to 10, built by the Texas Convergent tech team. A camera watches the child's hands. A laptop recognizes the washing motions and scores them. A projector shows germs that disappear as the child washes.
 
 This repo is the technical foundation. The child-facing game, the parent app and the XP/progression system are not built yet.
 
-## Environment (Andrew's Mac)
+Dated history, measurements, decisions and the next-work list are in `NOTES.md`. Read it before planning work. Add a dated entry there when something is built, measured or decided, and compress it every few weeks (rules at its top). Keep this file to stable, everyday facts.
 
-- Repo: `~/convergent-handwashing`. Always use `.venv/bin/python`, not the Conda `(base)` Python.
-- Fast tests: `.venv/bin/python -m pytest tests/unit -m "not mediapipe"`. Full suite: `.venv/bin/python -m pytest -q` (187 tests as of 2026-11-14; `tests/acceptance/test_model_acceptance.py::test_events_in_who_order_with_thumb_missing` fails on `main` before the green fix too, not investigated).
-- Lint: `.venv/bin/ruff check src tests`.
-- Sample clip: `data/samples/handwashing_missing_step.mp4`. It is git-ignored and was downloaded from `dpt-xyz/hand-wash-compliance-yolo` (`TestingData/missingStep_test1.mp4`). Don't swap in a different clip, because the regression fingerprint depends on this one.
-- Cameras: index 0 is usually the iPhone (Continuity Camera). The MacBook webcam is usually `--device 1`. Index order can change between machines and sessions. The webcam is grabbed in a background thread (2026-11-14); `tracker.backend` defaults to `solutions` because `tasks` is about 2x slower on macOS. The live window shows the pipeline FPS; below 12 FPS recognition degrades.
-- The webcam only works from Andrew's own Terminal app. The Claude desktop terminal panel has no camera permission ("not authorized to capture video"). Give Andrew the command to run himself.
+## Environment: Bryan's Windows laptop (this branch)
 
-### Run commands
+- Windows 11, NVIDIA RTX 3050 Ti Laptop GPU (4 GB), driver 616.56 (CUDA 13.4 capable, no update needed).
+- Shell: PowerShell 5.1 (no `&&`, use `;`). Python: `.venv\Scripts\python` (3.11). Other Pythons on the machine (3.12 default, 3.9) are not used.
+- `.venv` was built with `uv sync --extra backend --extra yolo --extra dev`, then PyTorch swapped to the CUDA build. A plain `uv sync` puts CPU PyTorch back. Restore the GPU build with:
+  ```powershell
+  uv pip install --python .venv\Scripts\python.exe --reinstall --no-deps torch==2.6.0 torchvision==0.21.0 --index-url https://download.pytorch.org/whl/cu126
+  ```
+- GPU use: training only (`--device cuda`). Live recognition and MediaPipe run on the CPU by design (small model, MediaPipe has no GPU on Windows).
+- Webcam: built-in camera is `--device 0`. Bryan runs camera commands himself.
+- Tests: `.venv\Scripts\python -m pytest -q` (224 pass on 2026-11-17, about 3 min). Fast: `.venv\Scripts\python -m pytest tests/unit -m "not mediapipe"`. Lint: `.venv\Scripts\python -m ruff check src tests`.
+- Sample clip: `data/samples/handwashing_missing_step.mp4`, git-ignored, from `dpt-xyz/hand-wash-compliance-yolo` (`TestingData/missingStep_test1.mp4`). Don't swap in a different clip, the regression fingerprint depends on it.
 
-```bash
-# Terminal 1 (leave running): backend API, docs at http://127.0.0.1:8000/docs
-.venv/bin/python -m convergent.cli backend
+## Environment: Andrew's Mac
 
-# Terminal 2: live webcam with diagnostic window + score panel. Esc stops and prints the score.
-.venv/bin/python -m convergent.cli camera --device 1 --show --save-results --backend http
+- Repo `~/convergent-handwashing`, Python `.venv/bin/python` (not Conda base). GPU flag is `--device mps`.
+- Camera index 0 is usually the iPhone (Continuity Camera), the MacBook webcam is usually `--device 1`.
+- The Claude desktop terminal panel has no camera permission. Give Andrew the command to run in his own Terminal.
 
-# Replay the sample clip without a server
-.venv/bin/python -m convergent.cli replay --video data/samples/handwashing_missing_step.mp4 --save-results --backend inprocess
+## Run commands (Windows paths)
+
+```powershell
+# Live webcam: diagnostic window + germ graphics. Esc stops and prints the score, P toggles graphics, F fullscreen.
+.venv\Scripts\python -m convergent.cli camera --device 0 --show --projection
+# Clean game view instead of the diagnostic view: add --game. Save the run: add --save-results.
+
+# Older "dinos" germ scene instead of the default "coverage" scene (temporary config copy)
+(Get-Content configs\development.yaml) -replace 'mode: coverage','mode: dinos' | Set-Content $env:TEMP\dinos.yaml; .venv\Scripts\python -m convergent.cli --config $env:TEMP\dinos.yaml camera --device 0 --show --projection
+
+# Sample clip, no server
+.venv\Scripts\python -m convergent.cli replay --video data\samples\handwashing_missing_step.mp4 --save-results --backend inprocess
+
+# Backend API (docs at http://127.0.0.1:8000/docs). Then use --backend http on camera runs.
+.venv\Scripts\python -m convergent.cli backend
 ```
 
-Every run with `--save-results` writes `runs/<session_id>/summary.json`, `events.json`, `frames.jsonl` (with `v2_top`, the model's top 3 guesses) and `landmarks.npz` (slotted hand points of every frame, `RawRecording` format, so a live run can be replayed through a newer model). `summary.json`, `events.json` and `landmarks.npz` are only written when the run ends with Esc or Ctrl+C, not when the window or Terminal is closed. `--backend inprocess` saves data but starts no web server.
+`--save-results` writes `runs/<session_id>/` (`summary.json`, `events.json`, `frames.jsonl`, `landmarks.npz`). The summary, events and landmarks are only written when the run ends with Esc or Ctrl+C, not when the window is closed.
+
+Training and evaluation commands are in `docs/RECORDING_GUIDE.md`, `scripts/train_temporal_v2.py`, `scripts/benchmark_recognition.py` and `scripts/eval_own_rounds.py`. Long training runs started in the background of a Claude session stall while Claude is not in a tool call. Run them in the foreground or wait with an `until` loop.
 
 ## Pipeline (per frame, `src/convergent/pipeline.py`)
 
-1. MediaPipe tracks up to 2 hands (21 landmarks each).
-2. Model branches predict the technique:
-   - **`temporal_v2`** (`detection/pair_adapter.py`), the model that decides. Details below.
-   - The two older models, HandHygiene RandomForest and the v1 LSTM (`skia_temporal`), still run and are logged, but have fusion weight 0. On held-out data they scored 21% and 25% and made the result worse when they voted.
-   - YOLO has no weights and stays unavailable.
-3. Fusion combines the branches. Below 0.45 confidence, or when the model says "none", the frame is unknown.
-4. The temporal validator and `EventDetector` (`detection/temporal.py`, `event_detector.py`) turn frames into events:
-   - a motion starts at confidence 0.6 or more and continues at 0.4 or more;
-   - it needs at least 0.5 s of support to be validated (1.0 s before 2026-11-12);
-   - gaps of up to 0.5 s are allowed;
-   - fragments less than 0.75 s apart are merged.
-   Finalized `GestureEvent`s arrive about 1.25 s after the motion stops.
-5. Region evidence and `ProgressState` (`regions/`) track 10 cells (5 regions × 2 hands).
-6. The wash score (`scoring/wash_score.py`) runs on every frame.
-7. Projection mapping, then sinks (results files, backend, Pi gateway).
+1. MediaPipe tracks up to 2 hands (21 points each). Hands under 10% of the picture are dropped. A light fix cleans dark or tinted pictures.
+2. `temporal_v2` (`detection/pair_adapter.py`) names the technique. It is the only model that decides. The older RandomForest and v1 LSTM still run and are logged with weight 0. YOLO has no weights.
+3. Fusion: below 0.45 confidence, or "none", the frame is unknown.
+4. `detection/temporal.py` and `event_detector.py` turn frames into events: start at 0.6, continue at 0.4, at least 0.5 s to validate, gaps up to 0.5 s, fragments under 0.75 s apart merged. Events arrive about 1.25 s after the motion stops.
+5. Region evidence (`regions/`) tracks 10 cells (5 regions x 2 hands). The side comes from `detection/side_resolver.py`.
+6. Wash score (`scoring/wash_score.py`) runs every frame.
+7. Projection graphics, then sinks (results files, backend, Pi gateway).
 
-### Recognition model: `temporal_v2` (built 2026-11-11)
+### Recognition model `temporal_v2`
 
-Why it replaced the v1 LSTM: on Andrew's webcam the LSTM only said "palm to palm" when the tracker lost a hand (98 to 99% of its palm predictions), and the label flickered about 200 times a minute.
-
-- **Classes:** the 7 techniques plus `none` (not washing). No left/right. The side comes from `detection/side_resolver.py` (2026-11-14): an MLP on label-free hand geometry, 96.5% held-out frame accuracy on Kaggle, sets `GestureEvent.side` for sided events.
-- **Features** (`detection/pair_features.py`, 183 values per frame): each hand described in its own frame (position, size and in-plane rotation removed), its motion, and the other hand seen from it.
-- **Hand slots:** by position continuity (`HandSlotter`), not by MediaPipe's left/right guess. Hands without a resolved side are used too.
-- **Window:** the last 48 frames (3.2 s) on a 15 FPS grid. Since 2026-11-14 the buffer is resampled onto that grid (linear interpolation), so a laptop running at 6 to 9 FPS still feeds the model what it was trained on; at 15 FPS nothing changes. Frames without hands stay in as empty frames, so a dropout costs no warm-up. It answers after 8 frames with a hand and keeps answering for 0.35 s after the hands vanish.
-- **Model:** temporal convolution network, `models/temporal_v2/current` (2.2 MB, committed). Output is calibrated. Smoothing is off since 2026-11-12 (`smooth_s: 0`) to cut lag.
-- **Training data:** METC (Zenodo 5808789, 212 washes, frame labels), Kaggle `realtimear/hand-wash-dataset` (300 clips) and Andrew's own rounds `data/own/down1..3` (recorded 2026-11-11, laptop webcam, front view at chest height, 15 s per class). All in `data/`, git-ignored.
-- **Installed model (2026-11-12):** full training on all data (`runs/v2/own_all`), then a 10-epoch fine-tune with own weight 12 (`runs/v2/ft_all`, `--init-from`). The previous public-only model is backed up in `runs/v2/installed_backup_public_only`.
-
-Results on held-out METC people, through the full pipeline:
-
-| Measure | Old models | New model |
-| --- | --- | --- |
-| Frame accuracy | 22% | 75% |
-| Credited time / performed time (mean over steps) | 7% | 70% |
-| Palm-to-palm credited | 0% | 80% |
-| Label changes per minute (truth 7.8) | 248 | 24 |
-
-Weak spots: thumb rubbing (53% credited), "other movement" still earns some step credit. Full numbers are in `docs/TEST_RESULTS.md` section 7.
-
-On Andrew's webcam (held-out round `down3`, model trained without it, full pipeline):
-
-| Measure | Public-only model | With own rounds 1 and 2 |
-| --- | --- | --- |
-| Frame accuracy | 24% | 59% |
-| Credited time / performed time | 10% | 48% |
-| Wrist credited | 0% | 0% |
-| Palm to palm credited | 21% | 65% |
-| Thumb credited | 11% | 18% |
-
-Window accuracy on a held-out own round ranged 52 to 69% depending on which round was held out. The model scores 100% on the rounds it trained on, so it memorizes: 2 rounds of one person are too few. More rounds from several people, with varied technique, are the main lever. Wrist is read as backs of fingers. Details in `docs/TEST_RESULTS.md` section 8.
-
-Commands:
-
-```bash
-# record labelled clips on our camera (run from Andrew's Terminal); guide in docs/RECORDING_GUIDE.md
-.venv/bin/python -m convergent.cli record --device 1 --view down --round down1
-# landmarks -> train -> install (about 15 minutes on the M5 Pro)
-.venv/bin/python scripts/extract_landmarks_v2.py --metc data/METC --kaggle data/HandWashDataset --own data/own
-.venv/bin/python scripts/train_temporal_v2.py --out runs/v2/<name> --window 48 --layers 5 --device mps --test-own-rounds down2,front2 --install
-# fine-tune an existing artifact on own rounds (about 2 minutes); keeps the last epoch
-.venv/bin/python scripts/train_temporal_v2.py --out runs/v2/<name> --window 48 --layers 5 --device mps --init-from runs/v2/own_all --own-weight 12 --epochs 10 --lr 5e-4 --samples-per-epoch 20000 --install
-# measure through the real pipeline (--set accepts paths, e.g. temporal_v2.artifact_dir=runs/v2/<name>)
-.venv/bin/python scripts/benchmark_recognition.py --own data/own --rounds down3 --metc data/METC
-# window accuracy per own round (shows memorization: trained rounds vs held-out)
-.venv/bin/python scripts/eval_own_rounds.py --model runs/v2/<name> --rounds down1,down2,down3
-```
-
-Tooling note: long training runs started in the background of a Claude session stall while Claude is not in a tool call. Run them in the foreground, or wait on them with an `until` loop.
+- Classes: the 7 techniques plus `none`. No left/right.
+- Input: 183 features per frame (`detection/pair_features.py`), last 48 frames (3.2 s) resampled onto a 15 FPS grid. Hands slotted by position continuity, not MediaPipe's left/right.
+- Temporal convolution network, `models/temporal_v2/current` (2.2 MB, committed).
+- Training data: METC (Zenodo 5808789), Kaggle `realtimear/hand-wash-dataset`, Andrew's own rounds `data/own/down1..3`. All in `data/`, git-ignored.
+- Accuracy: 75% of frames on held-out public videos, 59% on Andrew's webcam. It memorizes the own rounds it trained on. More rounds from more people is the main lever.
 
 ### Technique names
 
-`palm_to_palm`, `back_of_hand`, `interlaced_fingers`, `backs_of_fingers`, `thumb_rubbing`, `fingertip_rubbing` (the 6 WHO core techniques) and `wrist_rubbing` (WHO step 7, an extension). `configs/labels.yaml: side_resolution` is filled (verified on Kaggle frames 2026-11-14: `*_Left` = the left hand receives). Side = receiving (static) hand.
+`palm_to_palm`, `back_of_hand`, `interlaced_fingers`, `backs_of_fingers`, `thumb_rubbing`, `fingertip_rubbing` (WHO core 6) and `wrist_rubbing` (WHO step 7, an extension). Side = the receiving (static) hand.
 
-## Wash score (built 2026-11-10)
+## Wash score
 
-`src/convergent/scoring/wash_score.py`, configured in `configs/development.yaml` under `scoring:`. Andrew chose these rules:
+`scoring/wash_score.py`, configured under `scoring:` in `configs/development.yaml`. Andrew's rules:
 
-- **Step time:** validated seconds per technique, summed across tries, either hand. Side mapping is not needed.
-- **Live time:** released events, plus `EventDetector.pending` (the event held for a merge), plus the active candidate's `supported_s` once it is validated. The displayed time never decreases.
-- **Backfill (2026-11-12):** when a step validates, it also gets up to `backfill_s` (1.5 s) of the unrecognized time just before it, never time already credited to another step. This makes up for the model's switch lag (median 1.4 s, measured by playing one own clip into another). Before this fix a step's timer started 2.5 to 4 s after the motion began.
-- **Step done:** 3.0 s or more. Finished: 5 of 7 steps done AND a total of 20 s or more.
-- **Order:** `next_step` suggests WHO order, but any step gets credit.
-- **Points (0 to 100):** up to 10 per step (partial credit) plus up to 30 for total time, capped at 20 s.
-- **Stars:**
+- Step time: validated seconds per technique, summed across tries, either hand. Live time never decreases. A validating step also gets up to 1.5 s of unrecognized time just before it (model lag).
+- Step done: 3.0 s. Finished: 5 of 7 steps done and 20 s total. Finishing is a milestone, points and stars keep accruing.
+- Any order gets credit. `next_step` suggests WHO order.
+- Points (0 to 100): up to 10 per step plus up to 30 for total time (capped at 20 s).
+- Stars: 0 nothing, 1 some washing, 2 three steps or 10 s, 3 finished, 4 finished with 6 steps, 5 finished with all 7.
+- Shows up in `FrameResult.score`, `summary.json`, backend `stats.wash_score`, the CLI summary and the live window. Contract in `docs/GAMIFICATION_HANDOFF.md`.
+- Thresholds are first guesses. Tune them from real washes.
 
-  | Stars | Condition |
-  | --- | --- |
-  | 0 | Nothing recognized |
-  | 1 | Some washing recognized |
-  | 2 | 3 steps done, or 10 s total |
-  | 3 | Finished |
-  | 4 | Finished with 6 steps |
-  | 5 | Finished with all 7 steps |
+## Projection and game
 
-- **Finished is a milestone (2026-11-14):** `finished_at_ts` is kept, timers/points/stars keep accruing so late steps still earn 4-5 stars.
-
-Where the score shows up:
-
-- `FrameResult.score` on every frame.
-- `RunSummary.score` and `summary.json`.
-- The backend session's `stats.wash_score`, via `GET /api/v1/sessions/{id}`. No migration was needed.
-- The CLI end-of-run summary.
-- `draw_score_panel` in `vision/overlays.py`, the live window.
-
-If a run ends without finishing, the saved score uses released events only.
-
-Other changes in the same work:
-
-- `Pipeline.stop()` was added.
-- Esc and Ctrl+C now end a run normally. Before, the summary, `end_session` and `summary.json` were lost.
-
-The contract is documented in `docs/GAMIFICATION_HANDOFF.md`. Tests are in `tests/unit/test_wash_score.py` and `tests/integration/test_pipeline_e2e.py`.
-
-Sample clip result: 4 of 7 steps found (no palm, thumb or wrist), 49.6 s total, not finished, 2 stars, 70 points.
-
-**Status:** the thresholds (3 s, 20 s, 5 of 7) are first guesses. Tune them from real washes. The score and model changes are uncommitted on `main` unless git says otherwise. Branch before committing.
-
-## Projected graphics (2026-11-14)
-
-`projection/scene.py` + `projection/sprites.py`: germ-dinos per (hand, region) cell that die with region evidence, glow, bottom step strip. Same `RenderCommand` protocol as the Pi (`sprite`, `bar`, `filled_polygon` shapes added). Preview on the laptop: `camera --show --projection` or press P; `vision/overlays.py ProjectionPreview`. Config `projector.graphics`. `lead_ms` extrapolates hand graphics by the measured latency (0 until measured). Details: `docs/PROJECTION_GRAPHICS.md`.
-
-Green fix (2026-11-14, `projector.graphics.green_only`, off by default): hand graphics in the projector's green light only, and `vision/projector_light.py` removes that light from the tracker's picture (`HandTracker.image_filter`, set by the pipeline). Simulated projection (`simulate_feedback: 1.0`): own `down3` frame accuracy 63% no projection, 54% today's colours, 61% green fix; held-out METC 78 / 68 / 76%. Red-only tracking was tested and dropped (about 15 points lower even with the projector off). `green_fit` is per camera (`scripts/fit_green.py`), `green_leak` is a guess until hardware day. Do not raise `lead_ms` without measuring: straight-line prediction made scrubbing error worse on saved live runs (15 mm vs 12 mm at 67 ms).
-
-Coverage scene (2026-11-14, `projector.graphics.mode: coverage`, `dinos` = the first scene): `projection/coverage.py CoverageScene` puts 20 germs (three kinds) on the visible side of each hand, each tied to the wash step that cleans its spot, with separate palm and back sets. A step's germs pop one by one as its 3 s fill. No guide, any order: Andrew's decision after trying a guided game live (removed, copy in `runs/removed_guided/`). A slim bar at the top shows germs left, a ring per step and stars. Sheets come from `scripts/make_sprites.py` into `projection/assets/`, stored without colour and tinted (pure green under `green_only`). A lost hand is held 0.4 s. Game window with solid stickers: `camera --show --game`. `flip_facing` must match the camera.
-
-Auto wash sessions (2026-11-14, `wash_sessions.enabled`, `camera --auto-wash`, off by default): `scoring/wash_session.py` starts a wash after 0.5 s of hands and ends it 4 s after they leave. Each wash gives a `WashRecord` (seconds per part, score, quality, model version) in `runs/<session>/washes.jsonl`, `RunSummary.washes`, `Pipeline.on_wash` and the `wash` field of the `live` message, then score, events, evidence and germs are reset. Format in `docs/GAMIFICATION_HANDOFF.md`.
-
-False tiny hands (2026-11-14, `tracker.min_hand_size: 0.10`): detections whose outline box is under 10% of the picture are dropped. A background object taken for a hand earned 32 s of fingertip credit in a live run; real hands are 12% or more in all data.
-
-Light fix (2026-11-14, `tracker.light_fix`): `vision/projector_light.py normalise_light` cleans the tracker's picture when it is dark, tinted, flat or grainy, and leaves a well-lit picture alone. MediaPipe is the part that fails in bad light. Numbers in `docs/TEST_RESULTS.md` section 10. `scripts/benchmark_recognition.py --degrade dark|blue|flat|grainy` simulates bad light.
+- Two germ scenes, `projector.graphics.mode`: `coverage` (default, 20 germs per hand side, any order) and `dinos` (the first scene, one dino per hand region).
+- `green_only` (off) draws hand graphics in projector green and removes it from the tracker's picture. `lead_ms` stays 0 until latency is measured.
+- `camera --auto-wash` splits a run into washes (`washes.jsonl`).
+- Details in `docs/PROJECTION_GRAPHICS.md` and `NOTES.md`.
 
 ## Known limits (state these honestly)
 
-- The score and coverage measure recognized motion time. They are not proof of clean hands, soap contact or microbial removal. The SOAP checkmark (2026-11-14, `regions/foam.py` SoapDetector, `soap:` config) is a brightness heuristic for the UI and the `live` feed only; it never touches score or evidence.
-- Region coverage needs resolved sides; the side resolver provides them (sample clip: 0.40 -> 0.6). Its accuracy on our camera is unmeasured; `side_resolver.mirrored` must match the mount.
-- Recognition accuracy has only been measured on public top-down sink videos of adults (METC, Kaggle). It has not been measured on Andrew's webcam, the faucet camera or children's hands. Passing tests is software verification, not real-world accuracy.
-- One pipeline run is one session unless `wash_sessions.enabled` splits it into washes (see below). There is no child identity in the schema: pairing a wash with a child is the app's job.
-- `live` WebSocket messages are published since 2026-11-14 (`POST /api/v1/sessions/{id}/live` -> `/ws/v1/observations`, 5 Hz + every event). `Pipeline.on_frame` remains the in-process feed.
+- The score measures recognized motion time. It is not proof of clean hands, soap contact or germ removal. The SOAP checkmark is a brightness heuristic for the UI only.
+- Accuracy has been measured on public adult videos and Andrew's webcam only. Not on the faucet camera or children's hands. Passing tests is software verification, not real-world accuracy.
+- Side resolver accuracy on our camera is unmeasured. `side_resolver.mirrored` and `flip_facing` must match the mount.
+- No child identity in the schema. Pairing a wash with a child is the app's job.
 
 ## Hardware (planned, not arrived)
 
-Parts list (Andrew, 2026-11-14). An earlier note here said Pi Zero 2 W, which was wrong:
-
-- Raspberry Pi 3 Model A+ (512 MB RAM, 2.4 and 5 GHz Wi-Fi, full-size HDMI), shipping pending. Backup: Raspberry Pi 3 Model B (1 GB RAM, 2.4 GHz Wi-Fi, Ethernet).
-- Arducam B0176 5 MP camera (OV5647, motorized focus from 8 cm, field of view 54 x 44 degrees: 61 x 48 cm at 60 cm).
-- RIF6 Cube projector (DLP, 854x480, 50 lumens, mini-HDMI in). Throw ratio 1.99: the picture is half as wide as the distance, 15 x 8 cm at 30 cm and 30 x 17 cm at 60 cm. It must sit about 60 cm above the hands, not on the faucet.
-- onn. 10,000 mAh power bank, HDMI-A to mini-HDMI cable, 32 GB microSD, foam gasket tape.
-
-Keep heavy recognition on the laptop and the Pi agent lightweight (camera, JPEG over WebSocket port 8765, render commands back to HDMI). For hardware day: lock the Pi camera's exposure and white balance (`pi_agent/camera.py` leaves them on auto, so the projector's light would make the camera re-adjust), measure the camera-to-projector lag (estimate 150 to 250 ms), and calibrate at hand height.
-
-## Next work (suggested order)
-
-1. Record more own rounds (`docs/RECORDING_GUIDE.md`), ideally 2 to 3 teammates with a few rounds each and varied technique, then retrain and benchmark with a different person held out. Three rounds of Andrew gave 48% credited time on a held-out round, and the model memorizes the training rounds.
-2. Build a one-motion game demo (germ, instruction, celebration) on top of `WashScore`. Don't re-implement validation in the game layer.
-3. Coaching state machine, session lifecycle (hands arrive or leave), basic XP that does not reward washing extra times.
-4. Parent/admin frontend and child-profile pairing. React + Vite and Supabase have been proposed but not installed.
-5. Hardware testing on the Zero 2 W and recording 10 to 20 team washes for evaluation and retraining (label sides are resolved).
+- Raspberry Pi 3 Model A+ (backup: Pi 3 Model B), Arducam B0176 5 MP camera (54 x 44 degree view), RIF6 Cube projector (854x480, 50 lumens, throw ratio 1.99, must sit about 60 cm above the hands), power bank, mini-HDMI cable, microSD.
+- Heavy recognition stays on the laptop. The Pi sends camera JPEGs over WebSocket port 8765 and draws render commands to HDMI.
+- Hardware day: lock the Pi camera's exposure and white balance (`pi_agent/camera.py` leaves them on auto), measure camera-to-projector lag (estimate 150 to 250 ms), calibrate at hand height.
 
 ## How we work
 
-- Andrew is the senior engineer and Claude is the junior. We plan together before writing code.
-- When something is unclear, ask Andrew. Don't guess.
-- Always use these skills: `andrej-karpathy-skills:karpathy-guidelines`, `superpowers`, `i-have-adhd:i-have-adhd` (load at session start, applies to every response).
-- Responses: most important info first. Short and scannable, no fluff. Andrew has ADHD.
-- Code: write the minimum lines needed, only what we need. No extra features or abstractions.
+- Bryan is new to this repo and not very technical. Andrew is the team's senior engineer. Plan together before writing code.
+- When something is unclear, ask Bryan. Don't guess.
+- Andrew's setup loads the skills `karpathy-guidelines`, `superpowers` and `i-have-adhd`. They are not installed on Bryan's machine, so follow the style rules here instead.
+- Code: write the minimum lines needed. No extra features or abstractions.
+- Branch before committing. Don't commit to `main`.
 
-## Working style for Andrew
+### Subagents
 
-- Use clear, simple language and direct terminal commands. Andrew pastes them into his own Terminal.
+Bryan prefers more subagent use than usual. Delegate research, codebase exploration across several files, and ideation to subagents, and run independent ones in parallel. Don't spawn one when the extra tokens don't save real time or context: a lookup of a known file, a few tool calls, or a file already in context.
+
+### Working style for Bryan
+
+- Plain language. Explain technical terms briefly when they first appear.
 - Lead with the action or diagnosis. Medium-length answers, one milestone at a time.
-- Keep these separate: confirmed behavior, results Andrew reported, and proposed work.
+- Give PowerShell commands Bryan can paste.
+- Keep these separate: confirmed behavior, results Bryan reported, and proposed work.
 - Avoid em dashes, semicolons, asterisk emphasis and unnecessary adjectives.
 - Never print secrets from `.env`.
