@@ -120,6 +120,9 @@ def _attach_show_window(pipe, projection: bool = False, game: bool = False) -> N
     )
 
     preview = ProjectionPreview(pipe)
+    win = preview.window
+    cv2.namedWindow(win, cv2.WINDOW_NORMAL | cv2.WINDOW_KEEPRATIO)  # resizable; the default autosize window is locked
+    cv2.resizeWindow(win, 960, 720)
     if projection or game:
         pipe.scene.enabled = True
     orig = pipe.process_frame
@@ -138,20 +141,23 @@ def _attach_show_window(pipe, projection: bool = False, game: bool = False) -> N
             img = preview.compose(big.copy(), r.render, clean=True)
         else:
             img = render_overlay(frame, r.hands, [f"fused={r.fused.native_label or r.fused.status.value} conf={r.fused.confidence}",
-                                                  f"pipeline {fps:.1f} fps{warn}", "Esc = stop and print score   P = projection on/off"])
+                                                  f"pipeline {fps:.1f} fps{warn}", "Esc = stop and print score   P = projection on/off   F = fullscreen"])
             img = preview.compose(img, r.render)
             if preview.on:  # the game's top bar shows the times now: only the SOAP chip stays on the right
                 if r.soap is not None:
                     draw_soap_chip(img, r.soap, img.shape[1] - 8, 24)
             elif r.score is not None:
                 draw_score_panel(img, r.score, soap=r.soap)
-        cv2.imshow("convergent diagnostics", img)
+        cv2.imshow(win, img)
         preview.bind()
         key = cv2.waitKey(1) & 0xFF
         if key == 27:
             pipe.stop()  # normal end: summary, score and session end are saved
         elif key in (ord("p"), ord("P")):
             preview.toggle()
+        elif key in (ord("f"), ord("F")):
+            full = cv2.getWindowProperty(win, cv2.WND_PROP_FULLSCREEN) == cv2.WINDOW_FULLSCREEN
+            cv2.setWindowProperty(win, cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_NORMAL if full else cv2.WINDOW_FULLSCREEN)
         return r
 
     pipe.process_frame = _proc  # type: ignore[method-assign]

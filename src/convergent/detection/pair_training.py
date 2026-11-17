@@ -379,7 +379,7 @@ def train_pair_model(recs: list[RawRecording], out_dir: Path, cfg: PairTrainConf
             if cfg.augment is not None:
                 raw, pres = augment_raw(raw, pres, wi.aspect[b], cfg.augment, rng)
             x = torch.from_numpy(scaler.transform(featurize(raw, pres, wi.aspect[b], ts))).float().to(cfg.device)
-            y = torch.from_numpy(wi.y[b]).to(cfg.device)
+            y = torch.from_numpy(wi.y[b]).long().to(cfg.device)  # Windows numpy defaults to int32
             opt.zero_grad()
             loss = loss_fn(model(x), y)
             loss.backward()
