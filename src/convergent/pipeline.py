@@ -323,6 +323,8 @@ class Pipeline:
             if self._results_dir is not None:
                 with open(self._results_dir / "washes.jsonl", "a", encoding="utf-8") as fh:
                     fh.write(record.model_dump_json() + "\n")
+            if self.backend is not None:
+                self._safe(lambda: self.backend.post_wash(record.model_dump(mode="json")))  # type: ignore[union-attr]
             if self.on_wash:
                 self.on_wash(record)
         if reset:

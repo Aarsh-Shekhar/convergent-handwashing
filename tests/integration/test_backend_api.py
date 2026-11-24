@@ -43,9 +43,9 @@ def new_session(c, **kw):
 
 def test_migrations_applied_and_health(client, db_url):
     h = client.get("/health").json()
-    assert h["status"] == "ok" and h["migration_revision"] == "0001_initial" and h["database"] == "ok"
-    assert current_revision(db_url) == "0001_initial"
-    assert run_migrations(db_url) == "0001_initial"  # idempotent
+    assert h["status"] == "ok" and h["migration_revision"] == "0002_parent_app" and h["database"] == "ok"
+    assert current_revision(db_url) == "0002_parent_app"
+    assert run_migrations(db_url) == "0002_parent_app"  # idempotent
 
 
 def test_auth_required_for_writes_and_fail_closed_without_token(client, db_url):

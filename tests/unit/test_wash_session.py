@@ -111,3 +111,20 @@ def test_a_wash_still_going_when_the_run_stops_is_recorded_in_the_summary():
     assert len(summary.washes) == 1 and summary.washes[0]["duration_s"] > 3.0
     assert summary.washes[0]["soap_seen"] is False  # the soap check ran and saw none (None would mean it is switched off)
     assert json.loads(summary.to_json())["washes"][0]["wash_id"] == summary.washes[0]["wash_id"]
+
+
+def test_each_wash_is_saved_to_the_backend_when_it_ends(tmp_path):
+    """The parent app's history: every wash reaches the backend on its own, not only when the run stops."""
+    from convergent.backend.client import inprocess_client
+
+    client, _ = inprocess_client("t", f"sqlite:///{tmp_path / 'w.db'}")
+    cfg = PipelineConfig.load(resolve_path("configs/development.yaml"),
+                              {"wash_sessions": {"enabled": True}, "source": {"kind": "synthetic", "max_frames": 300, "target_fps": 15.0},
+                               "live_status_every_s": 0})
+    pipe = Pipeline(cfg, tracker=HandTracker(cfg.tracker, ScriptedBackend([HAND] * 75 + [[]] * 75 + [HAND] * 75 + [[]] * 75)),
+                    backend_client=client)
+    summary = pipe.run()
+    saved = client._req("GET", "/api/v1/app/washes")
+    client.close()
+    assert len(summary.washes) == 2
+    assert sorted(w["wash_id"] for w in saved) == sorted(w["wash_id"] for w in summary.washes)

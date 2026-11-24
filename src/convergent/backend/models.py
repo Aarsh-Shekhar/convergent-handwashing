@@ -175,6 +175,54 @@ class EvaluationRun(Base):
     created_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 
+# ---- parent app (one family per backend for now; the child is named by the parent, never recognized)
+class Child(Base):
+    __tablename__ = "children"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(64))
+    buddy: Mapped[str] = mapped_column(String(32), default="scrubby")
+    age_band: Mapped[str] = mapped_column(String(8), default="5-6")
+    created_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class WashRow(Base):
+    """One wash (WashRecord) with the zaps it earned when it arrived. No pictures, no hand points."""
+
+    __tablename__ = "washes"
+    wash_id: Mapped[str] = mapped_column(String(96), primary_key=True)
+    child_id: Mapped[int | None] = mapped_column(ForeignKey("children.id", ondelete="SET NULL"), nullable=True)
+    session_id: Mapped[str] = mapped_column(String(64))
+    ended_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    stars: Mapped[int] = mapped_column(Integer)
+    points: Mapped[int] = mapped_column(Integer)
+    finished: Mapped[bool] = mapped_column(Boolean)
+    steps_done: Mapped[int] = mapped_column(Integer)
+    zaps: Mapped[int] = mapped_column(Integer)
+    seconds: Mapped[dict[str, Any]] = mapped_column(JSON)
+    record: Mapped[dict[str, Any]] = mapped_column(JSON)
+    created_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class AppSettings(Base):
+    __tablename__ = "app_settings"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)  # always 1
+    parent_name: Mapped[str] = mapped_column(String(64), default="")
+    timezone: Mapped[str] = mapped_column(String(64), default="America/Chicago")
+    daily_goal: Mapped[int] = mapped_column(Integer, default=6)
+    routines: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list)
+    toggles: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    onboarded: Mapped[bool] = mapped_column(Boolean, default=False)
+    updated_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class GermUnlock(Base):
+    __tablename__ = "germ_unlocks"
+    germ: Mapped[str] = mapped_column(String(32), primary_key=True)
+    spent: Mapped[int] = mapped_column(Integer, default=0)  # zaps paid (0 for a boss win)
+    how: Mapped[str] = mapped_column(String(16))  # bought | boss
+    created_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
 class Annotation(Base):
     __tablename__ = "annotations"
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
