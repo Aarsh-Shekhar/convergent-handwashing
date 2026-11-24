@@ -4,6 +4,7 @@ import { Germ, germFor } from "./components/germs";
 import { Empty, Icon, PageHead } from "./components/ui";
 import { LiveProvider, useLive } from "./live";
 import Home from "./pages/Home";
+import Live from "./pages/Live";
 import Progress from "./pages/Progress";
 import WashDetail from "./pages/WashDetail";
 import Washes from "./pages/Washes";
@@ -28,6 +29,7 @@ function Screen({ path }: { path: string }) {
   if (wash) return <WashDetail id={decodeURIComponent(wash[1])} />;
   switch (path) {
     case "/washes": return <Washes />;
+    case "/live": return <Live />;
     case "/progress": return <Progress />;
     case "/rewards": return <Soon title="Rewards" />;
     case "/germdex": return <Soon title="Germ-dex" />;
@@ -37,7 +39,7 @@ function Screen({ path }: { path: string }) {
 }
 
 /** A short note when the station saves a wash, on whatever screen is open. */
-function WashToast() {
+function WashToast({ path }: { path: string }) {
   const { saved, savedCount } = useLive();
   const [shown, setShown] = useState<WashView | null>(null);
   useEffect(() => {
@@ -46,7 +48,7 @@ function WashToast() {
     const t = window.setTimeout(() => setShown(null), 4500);
     return () => clearTimeout(t);
   }, [saved, savedCount]);
-  if (!shown) return null;
+  if (!shown || path === "/live") return null; // the live page shows the result itself
   return (
     <Link to={`/washes/${encodeURIComponent(shown.wash_id)}`} className="toast" role="status" style={{ textDecoration: "none" }}>
       <Germ id={shown.missed.length ? germFor(shown.missed[0]) : "scrubby"} size={36} />
@@ -68,11 +70,11 @@ function useTimezoneSync() {
 function Shell() {
   const path = usePath();
   useTimezoneSync();
-  const tab = path.startsWith("/washes") ? "/" : path;
+  const tab = path.startsWith("/washes") || path === "/live" ? "/" : path;
   return (
     <div className="app">
       <Screen path={path} />
-      <WashToast />
+      <WashToast path={path} />
       <nav className="tabs" aria-label="Main">
         {TABS.map(([to, icon, label]) => (
           <Link key={to} to={to} aria-current={tab === to ? "page" : undefined}><Icon name={icon} />{label}</Link>
