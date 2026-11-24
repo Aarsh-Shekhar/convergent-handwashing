@@ -220,6 +220,29 @@ def cmd_network(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_wash_queue(args: argparse.Namespace) -> int:
+    """Show the wash upload queue (washes waiting for the backend or parked after a refusal), and optionally retry."""
+    from convergent.backend.client import BackendClient
+    from convergent.backend.outbox import WashOutbox
+
+    cfg = _config(args, {})
+    path = resolve_path(cfg.results_dir) / "wash_outbox.sqlite3"
+    if not path.exists():
+        print(f"no wash queue yet ({path})")
+        return 0
+    settings = load_settings()
+    client = BackendClient(cfg.backend.base_url, settings.api_token, cfg.backend.timeout_s)
+    box = WashOutbox(path, lambda rec: client.post_wash(rec, retries=0), start=False)
+    if args.retry_dead:
+        print(f"moved {box.retry_dead()} parked washes back to waiting")
+    if args.send:
+        print(f"uploaded {box.drain_once()} washes to {cfg.backend.base_url}")
+    print(json.dumps({"file": str(path), **box.counts(), "parked": box.parked()}, indent=2))
+    box.close(flush_s=0)
+    client.close()
+    return 0
+
+
 def cmd_backend(args: argparse.Namespace) -> int:
     from convergent.backend.app import run
 
@@ -326,6 +349,11 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--timeout", type=float, default=10.0, help="seconds to wait for a frame before ending the session")
     common(p)
     p.set_defaults(func=cmd_network)
+
+    p = sub.add_parser("wash-queue", help="show finished washes waiting to reach the backend; --send uploads them now")
+    p.add_argument("--send", action="store_true", help="upload waiting washes now")
+    p.add_argument("--retry-dead", action="store_true", help="put washes the backend refused back in the queue")
+    p.set_defaults(func=cmd_wash_queue)
 
     p = sub.add_parser("backend", help="start the FastAPI backend")
     p.add_argument("--host", default=None)

@@ -42,6 +42,12 @@ STARTER = "gunky"
 KINGS = ["king_prickle", "king_sneeze", "king_gunk"]  # boss of the week rotates through these
 DEX_SLOTS = 12
 BADGES = [("first_clean", "First clean wash"), ("perfect_10", "Perfect 10"), ("thumb_pro", "Thumb pro")]
+STREAK_BADGE_DAYS = 5  # the "5-day streak" badge
+# Adventure map: places open as rewarded washes add up (a product choice, not a measurement). A wash past the
+# daily goal earns nothing and does not move the map, so washing extra times is never the way forward.
+MAP_STAGES = [("bubble_bay", "Bubble Bay", 0), ("germ_jungle", "Germ Jungle", 10), ("soap_canyon", "Soap Canyon", 25),
+              ("bacteria_castle", "Bacteria Castle", 50)]
+MAP_STONES = 4  # stepping stones drawn between two places
 
 
 @dataclass
@@ -54,6 +60,7 @@ class Wash:
     finished: bool
     steps_done: int
     zaps: int = 0
+    reward_points: int = 0   # family-reward points this wash earned (fixed when it arrived)
 
 
 # ---- single wash
@@ -92,6 +99,52 @@ def zaps_for(w: Wash, earlier: list[Wash], tz: str, goal: int) -> int:
     return w.steps_done + (FINISH_BONUS if w.finished else 0)
 
 
+def points_for(w: Wash, earlier: list[Wash], tz: str, goal: int) -> int:
+    """Family-reward points a new wash earns: its score (0 to 100), under the same daily cap as zaps.
+
+    A wash with nothing recognized earns nothing, and so does any wash after today's goal is met."""
+    day = local_day(w.ended, tz)
+    if not counts(w) or sum(counts(e) for e in _on(earlier, tz, day, day)) >= goal:
+        return 0
+    return max(0, min(int(w.points), 100))
+
+
+def wash_days(washes: list[Wash], tz: str) -> list[date]:
+    """Local days with at least one counted wash, oldest first."""
+    return sorted({local_day(w.ended, tz) for w in washes if counts(w)})
+
+
+def _runs(days: list[date]) -> tuple[int, int, date | None]:
+    """(longest run, latest run, last day) of consecutive days."""
+    best = run = 0
+    prev: date | None = None
+    for d in days:
+        run = run + 1 if prev is not None and d - prev == timedelta(days=1) else 1
+        best, prev = max(best, run), d
+    return best, run, prev
+
+
+def streak(washes: list[Wash], now: datetime, tz: str) -> dict[str, int]:
+    """Days in a row with a counted wash. Today not washed yet does not break it; a missed day starts a new one."""
+    best, run, last = _runs(wash_days(washes, tz))
+    current = run if last is not None and local_day(now, tz) - last <= timedelta(days=1) else 0
+    return {"current": current, "best": best}
+
+
+def adventure(washes: list[Wash]) -> dict[str, Any]:
+    """The adventure map: which places are open and how far along the path to the next one."""
+    done = sum(1 for w in washes if w.zaps > 0 or w.reward_points > 0)
+    stages = []
+    for i, (key, name, need) in enumerate(MAP_STAGES):
+        nxt = MAP_STAGES[i + 1][2] if i + 1 < len(MAP_STAGES) else None
+        span = None if nxt is None else nxt - need
+        stones = MAP_STONES if span is None or done >= nxt else max(0, min(MAP_STONES, (done - need) * MAP_STONES // span))
+        stages.append({"id": key, "name": name, "unlock_at": need, "unlocked": done >= need, "stones_lit": stones if done >= need else 0})
+    upcoming = next((st for st in stages if not st["unlocked"]), None)
+    return {"rewarded_washes": done, "stones": MAP_STONES, "stages": stages,
+            "next": None if upcoming is None else {"id": upcoming["id"], "name": upcoming["name"], "washes_left": upcoming["unlock_at"] - done}}
+
+
 def _avg(ws: list[Wash]) -> int | None:
     ws = [w for w in ws if counts(w)]
     return round(sum(w.points for w in ws) / len(ws)) if ws else None
@@ -121,7 +174,7 @@ def label(local: datetime, routines: list[dict[str, Any]], window_min: int = 60)
 
 def wash_view(w: Wash) -> dict[str, Any]:
     return {"wash_id": w.wash_id, "ended": w.ended.isoformat(), "stars": w.stars, "points": w.points, "finished": w.finished,
-            "steps_done": w.steps_done, "zaps": w.zaps, "seconds_total": round(sum(w.seconds.values()), 1),
+            "steps_done": w.steps_done, "zaps": w.zaps, "reward_points": w.reward_points, "seconds_total": round(sum(w.seconds.values()), 1),
             "coverage": coverage(w.seconds), "missed": missed(w.seconds)}
 
 
@@ -185,7 +238,7 @@ def rewards(washes: list[Wash], unlocks: list[dict[str, Any]], now: datetime, tz
     owned = _owned(unlocks)
     germs = [{"id": g, **info, "owned": g in owned, "can_buy": g not in owned and info["price"] is not None and balance >= info["price"]}
              for g, info in GERMS.items()]
-    return {"zaps": balance, "germs": germs, "badges": badges(washes), "boss": boss_status(washes, now, tz)}
+    return {"zaps": balance, "germs": germs, "badges": badges(washes, tz), "boss": boss_status(washes, now, tz)}
 
 
 def germdex(washes: list[Wash], unlocks: list[dict[str, Any]], now: datetime, tz: str) -> dict[str, Any]:
@@ -195,8 +248,16 @@ def germdex(washes: list[Wash], unlocks: list[dict[str, Any]], now: datetime, tz
     return {"slots": DEX_SLOTS, "owned": len(owned), "germs": germs, "boss": boss_status(washes, now, tz)}
 
 
-def badges(washes: list[Wash]) -> list[dict[str, Any]]:
-    earned = {"first_clean": any(w.finished for w in washes),
-              "perfect_10": sum(w.stars >= 5 for w in washes) >= 10,
-              "thumb_pro": sum(coverage(w.seconds)["thumbs"] >= 1.0 for w in washes) >= 20}
-    return [{"id": b, "name": name, "earned": earned[b]} for b, name in BADGES]
+def badges(washes: list[Wash], tz: str | None = None) -> list[dict[str, Any]]:
+    """Badges earned so far. With ``tz`` the streak badge is included (days are counted in the family's timezone)."""
+    perfect = sum(w.stars >= 5 for w in washes)
+    thumbs = sum(coverage(w.seconds)["thumbs"] >= 1.0 for w in washes)
+    rows = [{"id": "first_clean", "name": "First clean wash", "earned": any(w.finished for w in washes), "have": min(sum(w.finished for w in washes), 1), "need": 1},
+            {"id": "perfect_10", "name": "Perfect 10", "earned": perfect >= 10, "have": min(perfect, 10), "need": 10},
+            {"id": "thumb_pro", "name": "Thumb pro", "earned": thumbs >= 20, "have": min(thumbs, 20), "need": 20}]
+    if tz is None:
+        return [{"id": r["id"], "name": r["name"], "earned": r["earned"]} for r in rows]
+    best = _runs(wash_days(washes, tz))[0]
+    rows.insert(0, {"id": "streak_5", "name": f"{STREAK_BADGE_DAYS}-day streak", "earned": best >= STREAK_BADGE_DAYS,
+                    "have": min(best, STREAK_BADGE_DAYS), "need": STREAK_BADGE_DAYS})
+    return rows

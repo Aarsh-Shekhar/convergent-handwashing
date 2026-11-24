@@ -172,3 +172,44 @@ def test_a_wash_is_named_after_the_routine_closest_in_time():
     assert P.label(datetime(2026, 11, 3, 15, 0), routines) == "Afternoon wash"  # nothing within an hour: named by time of day
     assert P.label(datetime(2026, 11, 3, 18, 0), routines) == "Evening wash"    # routine switched off
     assert P.label(datetime(2026, 11, 3, 9, 0), routines) == "Morning wash"
+
+
+# ---- family rules: points, streak, map (added with the family app)
+def test_points_are_the_score_capped_at_100_and_follow_the_same_daily_goal_as_zaps():
+    assert P.points_for(wash(at(3), ALL7, stars=3, points=82), [], TZ, goal=6) == 82
+    assert P.points_for(wash(at(3), ALL7, stars=5, points=140), [], TZ, goal=6) == 100
+    assert P.points_for(wash(at(3), stars=0, points=0), [], TZ, goal=6) == 0          # nothing recognized
+    earlier = [wash(at(3, 14)), wash(at(3, 15))]
+    assert P.points_for(wash(at(3, 20), ALL7, points=90), earlier, TZ, goal=2) == 0   # today's goal already met
+    assert P.points_for(wash(at(4, 7), ALL7, points=90), earlier, TZ, goal=2) == 90   # 01:00 next local day
+
+
+def test_streak_counts_local_days_in_a_row_and_today_not_washed_yet_does_not_break_it():
+    days = [wash(at(d)) for d in (1, 2, 3, 5, 6)]
+    assert P.streak(days, at(6, 23), TZ) == {"current": 2, "best": 3}
+    assert P.streak(days, at(7, 15), TZ) == {"current": 2, "best": 3}   # the 7th has no wash yet
+    assert P.streak(days, at(8, 15), TZ) == {"current": 0, "best": 3}   # the 7th was missed
+    assert P.streak([], at(8), TZ) == {"current": 0, "best": 0}
+    assert P.streak([wash(at(1), stars=0)], at(1, 23), TZ)["current"] == 0   # a wash with nothing recognized is no day
+    # 04:00 UTC on the 4th is still the 3rd in Chicago: the same day as the first wash, not a second one
+    assert P.streak([wash(at(3)), wash(at(4, 4))], at(4, 5), TZ) == {"current": 1, "best": 1}
+
+
+def test_map_places_open_at_their_wash_counts_and_only_rewarded_washes_move_it():
+    def after(n: int, unrewarded: int = 0):
+        return P.adventure([wash(at(1) + timedelta(hours=i), zaps=5) for i in range(n)] + [wash(at(2), zaps=0) for _ in range(unrewarded)])
+
+    assert [s["unlocked"] for s in after(9, unrewarded=40)["stages"]] == [True, False, False, False]
+    assert after(9)["next"] == {"id": "germ_jungle", "name": "Germ Jungle", "washes_left": 1}
+    ten = after(10)
+    assert [s["unlocked"] for s in ten["stages"]] == [True, True, False, False] and ten["stages"][0]["stones_lit"] == P.MAP_STONES
+    assert after(24)["next"]["washes_left"] == 1 and after(25)["next"]["id"] == "bacteria_castle"
+    done = after(50)
+    assert done["next"] is None and all(s["unlocked"] for s in done["stages"])
+
+
+def test_badges_with_a_timezone_add_the_streak_badge_and_progress():
+    five_days = [wash(at(d), ALL7, stars=5) for d in range(1, 6)]
+    b = {x["id"]: x for x in P.badges(five_days, TZ)}
+    assert b["streak_5"]["earned"] is True and b["perfect_10"] == {"id": "perfect_10", "name": "Perfect 10", "earned": False, "have": 5, "need": 10}
+    assert {x["id"]: x["earned"] for x in P.badges(five_days[:4], TZ)}["streak_5"] is False

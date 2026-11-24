@@ -247,6 +247,7 @@ class BackendClientConfig(_Cfg):
     base_url: str = "http://127.0.0.1:8000"
     timeout_s: float = 5.0
     batch_size: int = 32
+    wash_queue: bool = True  # finished washes go through the durable upload queue (backend/outbox.py) instead of a blocking call
     live_hz: float = 5.0    # rate of `live` WebSocket messages (fused label, score, progress) posted via POST .../live; 0 = off
 
 
@@ -309,6 +310,7 @@ class Settings(BaseSettings):
     log_backup_count: int = 5
     allow_unauthenticated_reads: bool = True
     retain_raw_video: bool = False
+    demo_mode: bool = False  # a throwaway demo family: the app shows a "Demo" mark and the demo reset is allowed
 
     @property
     def is_sqlite(self) -> bool:

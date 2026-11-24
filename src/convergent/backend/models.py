@@ -198,6 +198,8 @@ class WashRow(Base):
     finished: Mapped[bool] = mapped_column(Boolean)
     steps_done: Mapped[int] = mapped_column(Integer)
     zaps: Mapped[int] = mapped_column(Integer)
+    reward_points: Mapped[int] = mapped_column(Integer, default=0)  # family-reward points, fixed when the wash arrives
+    source: Mapped[str] = mapped_column(String(16), default="station")  # station | demo (made-up seed data)
     seconds: Mapped[dict[str, Any]] = mapped_column(JSON)
     record: Mapped[dict[str, Any]] = mapped_column(JSON)
     created_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True))
@@ -212,15 +214,60 @@ class AppSettings(Base):
     routines: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list)
     toggles: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     onboarded: Mapped[bool] = mapped_column(Boolean, default=False)
+    active_child_id: Mapped[int | None] = mapped_column(Integer, nullable=True)  # the child new washes belong to (picked by the parent)
+    parent_pin_hash: Mapped[str | None] = mapped_column(String(200), nullable=True)  # salted PBKDF2, never the PIN itself
     updated_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 
 class GermUnlock(Base):
-    __tablename__ = "germ_unlocks"
-    germ: Mapped[str] = mapped_column(String(32), primary_key=True)
+    """A germ a child bought with zaps or won from the boss. ``child_id`` is NULL only before the first child exists."""
+
+    __tablename__ = "child_germs"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    child_id: Mapped[int | None] = mapped_column(ForeignKey("children.id", ondelete="CASCADE"), nullable=True, index=True)
+    germ: Mapped[str] = mapped_column(String(32))
     spent: Mapped[int] = mapped_column(Integer, default=0)  # zaps paid (0 for a boss win)
     how: Mapped[str] = mapped_column(String(16))  # bought | boss
     created_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    __table_args__ = (UniqueConstraint("child_id", "germ", name="uq_child_germ"),)
+
+
+class FamilyReward(Base):
+    """A real-life reward the parent offers for points (extra bedtime story, pick the Friday movie)."""
+
+    __tablename__ = "family_rewards"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    title: Mapped[str] = mapped_column(String(80))
+    cost: Mapped[int] = mapped_column(Integer)
+    icon: Mapped[str] = mapped_column(String(16), default="gift")
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class Redemption(Base):
+    """A child's request to trade points for a family reward. The points are held from the request until a parent decides."""
+
+    __tablename__ = "redemptions"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    request_id: Mapped[str] = mapped_column(String(64), unique=True)  # made by the app, so a repeated tap or retry is stored once
+    child_id: Mapped[int | None] = mapped_column(ForeignKey("children.id", ondelete="CASCADE"), nullable=True, index=True)
+    reward_id: Mapped[int | None] = mapped_column(ForeignKey("family_rewards.id", ondelete="SET NULL"), nullable=True)
+    title: Mapped[str] = mapped_column(String(80))   # as it was when asked for
+    cost: Mapped[int] = mapped_column(Integer)       # as it was when asked for
+    status: Mapped[str] = mapped_column(String(12), default="requested")  # requested | approved | declined
+    requested_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    decided_utc: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class Encouragement(Base):
+    """A parent's high-five on one wash. Kept in the app only; nothing is sent to the station."""
+
+    __tablename__ = "encouragements"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    wash_id: Mapped[str] = mapped_column(ForeignKey("washes.wash_id", ondelete="CASCADE"))
+    kind: Mapped[str] = mapped_column(String(16), default="high_five")
+    created_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    __table_args__ = (UniqueConstraint("wash_id", "kind", name="uq_encouragement_wash_kind"),)
 
 
 class Annotation(Base):

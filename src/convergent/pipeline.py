@@ -32,6 +32,7 @@ from typing import Any
 import numpy as np
 
 from convergent.backend.client import BackendClient, BackendError
+from convergent.backend.outbox import WashOutbox
 from convergent.common.config import PipelineConfig, Settings, load_settings, resolve_path
 from convergent.common.logging import get_logger
 from convergent.common.timestamps import monotonic, utc_now_iso
@@ -162,6 +163,11 @@ class Pipeline:
         if cfg.projector.graphics.green_only or cfg.projector.graphics.simulate_feedback > 0:
             self.tracker.image_filter = self._tracker_image
         self.backend = backend_client
+        # Finished washes (auto wash sessions) go through a durable queue so a slow or missing backend never stalls the camera loop.
+        # The in-process backend has no network to wait for and must stay on this thread, so it is called directly.
+        self.outbox: WashOutbox | None = None
+        if backend_client is not None and ws.enabled and cfg.backend.wash_queue and not backend_client.in_process:
+            self.outbox = WashOutbox(resolve_path(cfg.results_dir) / "wash_outbox.sqlite3", lambda rec: backend_client.post_wash(rec, retries=0))
         self.gateway = gateway
         self.deterministic = deterministic
         self.save_results = save_results
@@ -323,7 +329,9 @@ class Pipeline:
             if self._results_dir is not None:
                 with open(self._results_dir / "washes.jsonl", "a", encoding="utf-8") as fh:
                     fh.write(record.model_dump_json() + "\n")
-            if self.backend is not None:
+            if self.outbox is not None:
+                self.outbox.put(record.model_dump(mode="json"))  # written to disk now, uploaded in the background
+            elif self.backend is not None:
                 self._safe(lambda: self.backend.post_wash(record.model_dump(mode="json")))  # type: ignore[union-attr]
             if self.on_wash:
                 self.on_wash(record)
@@ -555,6 +563,8 @@ class Pipeline:
 
     def close(self) -> None:
         self.tracker.close()
+        if self.outbox is not None:
+            self.outbox.close()  # washes not uploaded yet stay queued on disk for the next run
         if self.backend is not None:
             self.backend.close()
 

@@ -106,8 +106,11 @@ async def add_events(session_id: str, body: S.EventBatch, request: Request, db: 
 @router.post("/api/v1/sessions/{session_id}/live", status_code=status.HTTP_202_ACCEPTED, dependencies=[Depends(require_write)])
 async def post_live(session_id: str, body: S.LiveUpdate, request: Request):  # type: ignore[no-untyped-def]
     """Fan a live pipeline update out to /ws/v1/observations subscribers (type `live`). Nothing is stored."""
+    from datetime import UTC, datetime
+
     from convergent.communication.protocol import make_message
 
+    request.app.state.station_seen = datetime.now(UTC)  # the parent app's "station online" comes from this
     n = await request.app.state.hub.broadcast("observations", make_message("live", 0, session_id=session_id, **body.model_dump(mode="json")))
     return {"subscribers": n}
 

@@ -24,7 +24,11 @@ log = get_logger(__name__)
 
 
 class BackendError(RuntimeError):
-    pass
+    """A backend call failed. ``status`` is the HTTP status (None when there was no answer at all)."""
+
+    def __init__(self, message: str, status: int | None = None, retry_after: float | None = None) -> None:
+        super().__init__(message)
+        self.status, self.retry_after = status, retry_after
 
 
 @dataclass
@@ -60,10 +64,11 @@ class BackendClient:
                 r = self._client.request(method, path, content=None if json_body is None else json.dumps(json_body, default=str),
                                          headers={"Content-Type": "application/json"} if json_body is not None else None)
                 if r.status_code >= 500 and attempt < retries:
-                    last = BackendError(f"{method} {path}: {r.status_code} {r.text[:200]}")
+                    last = BackendError(f"{method} {path}: {r.status_code} {r.text[:200]}", r.status_code)
                     continue
                 if r.status_code >= 400:
-                    raise BackendError(f"{method} {path}: {r.status_code} {r.text[:300]}")
+                    wait = r.headers.get("Retry-After", "")
+                    raise BackendError(f"{method} {path}: {r.status_code} {r.text[:300]}", r.status_code, float(wait) if wait.isdigit() else None)
                 return r.json() if r.content else None
             except (httpx.TransportError, httpx.TimeoutException) as exc:
                 last = exc
@@ -71,7 +76,7 @@ class BackendClient:
                     break
         self.stats.failures += 1
         self.stats.last_error = str(last)
-        raise BackendError(str(last))
+        raise last if isinstance(last, BackendError) else BackendError(str(last))
 
     # ---- API
     def health(self) -> dict[str, Any]:
@@ -114,9 +119,14 @@ class BackendClient:
         self.stats.live_sent += 1
         return res
 
-    def post_wash(self, record: dict[str, Any]) -> dict[str, Any]:
+    def post_wash(self, record: dict[str, Any], retries: int = 2) -> dict[str, Any]:
         """Save one finished wash for the parent app (the same wash_id twice is stored once)."""
-        return self._req("POST", "/api/v1/washes", record)
+        return self._req("POST", "/api/v1/washes", record, retries=retries)
+
+    @property
+    def in_process(self) -> bool:
+        """True for the socket-free client of ``--backend inprocess`` (it must be called from one thread)."""
+        return getattr(self, "_tc", None) is not None
 
     def post_calibration(self, profile: CalibrationProfile, device_id: str | None = None, activate: bool = True) -> dict[str, Any]:
         return self._req("POST", "/api/v1/calibrations", {"profile": profile.model_dump(mode="json"), "device_id": device_id, "activate": activate})

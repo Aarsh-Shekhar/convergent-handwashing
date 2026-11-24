@@ -19,7 +19,9 @@ from convergent.backend.database import Database, run_migrations
 from convergent.backend.routes.api_v1 import API_VERSION
 from convergent.backend.routes.api_v1 import router as api_router
 from convergent.backend.routes.app_v1 import router as app_router
+from convergent.backend.routes.family_v1 import router as family_router
 from convergent.backend.routes.ws_v1 import router as ws_router
+from convergent.backend.services.family import ParentSessions
 from convergent.backend.ws import Hub, jsonable
 from convergent.common.config import Settings, load_settings
 from convergent.common.logging import configure_logging, get_logger
@@ -37,6 +39,9 @@ def create_app(settings: Settings | None = None, database_url: str | None = None
         app.state.migration_revision = run_migrations(url) if migrate else None
         app.state.db = Database(url, settings)
         app.state.hub = Hub()
+        app.state.parents = ParentSessions()   # parent PIN unlocks (memory only)
+        app.state.station_seen = None          # when the wash software last sent a live update
+        app.state.wash_times = []              # arrival times of recent washes, for the rate limit
         app.state.started_monotonic = time.monotonic()
         if not settings.api_token:
             log.warning("CONVERGENT_API_TOKEN is empty: write endpoints are disabled (fail closed)")
@@ -47,6 +52,7 @@ def create_app(settings: Settings | None = None, database_url: str | None = None
     app.state.settings = settings
     app.include_router(api_router)
     app.include_router(app_router)
+    app.include_router(family_router)
     app.include_router(ws_router)
     _serve_web(app)
 

@@ -42,10 +42,11 @@ def now() -> datetime:
 
 
 def test_a_wash_is_saved_once_and_earns_zaps(client):
-    r = client.post("/api/v1/washes", json=record("w1", now(), ALL7), headers=H)
+    rec = record("w1", now(), ALL7)
+    r = client.post("/api/v1/washes", json=rec, headers=H)
     assert r.status_code == 201, r.text
     assert r.json()["zaps"] == 7 + P.FINISH_BONUS
-    again = client.post("/api/v1/washes", json=record("w1", now(), ALL7), headers=H)
+    again = client.post("/api/v1/washes", json=rec, headers=H)
     assert again.status_code == 200 and again.json()["duplicate"] is True
     assert len(client.get("/api/v1/app/washes").json()) == 1
     assert client.get("/api/v1/app/rewards").json()["zaps"] == 7 + P.FINISH_BONUS
