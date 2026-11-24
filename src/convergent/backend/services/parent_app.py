@@ -152,6 +152,12 @@ def wash_row(db: DbSession, wash_id: str) -> m.WashRow | None:
     return db.get(m.WashRow, wash_id)
 
 
+def wash_rows(db: DbSession) -> list[m.WashRow]:
+    """The active child's stored washes, newest first."""
+    q = select(m.WashRow).where(_owned_by(m.WashRow.child_id, scope(db))).order_by(m.WashRow.ended_utc.desc())
+    return list(db.scalars(q).all())
+
+
 def wash_in_scope(db: DbSession, wash_id: str) -> m.WashRow | None:
     row = db.get(m.WashRow, wash_id)
     return row if row is not None and row.child_id == scope(db) else None

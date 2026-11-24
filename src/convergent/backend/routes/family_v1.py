@@ -7,6 +7,7 @@ from ``POST /api/v1/app/parent/unlock``).
 
 from __future__ import annotations
 
+import json
 from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
@@ -188,6 +189,27 @@ def adventure(db: DbSession = Depends(get_db)) -> dict[str, Any]:
     s = A.settings(db)
     washes = A.washes(db)
     return {**P.adventure(washes), "streak": P.streak(washes, _now(), s.timezone), "boss": P.boss_status(washes, _now(), s.timezone)}
+
+
+# ---- parent analytics and the sync log
+@router.get("/insights")
+def insights(days: int = 14, db: DbSession = Depends(get_db)) -> dict[str, Any]:
+    if days not in (7, 14, 30, 90):
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail="days must be 7, 14, 30 or 90")
+    s = A.settings(db)
+    return P.insights(A.washes(db), _now(), s.timezone, s.daily_goal, days)
+
+
+@router.get("/sync")
+def sync_log(db: DbSession = Depends(get_db)) -> dict[str, Any]:
+    """How the active child's washes reached the app: where each came from, when it happened and when it arrived."""
+    rows = A.wash_rows(db)
+    log = [{"wash_id": r.wash_id, "session_id": r.session_id, "source": r.source, "ended": A._utc(r.ended_utc).isoformat(),
+            "received": A._utc(r.created_utc).isoformat(), "lag_s": round((A._utc(r.created_utc) - A._utc(r.ended_utc)).total_seconds(), 1),
+            "points": r.points, "bytes": len(json.dumps(r.record, separators=(",", ":")))} for r in rows[:25]]
+    newest = next((r for r in rows if r.source == "station"), rows[0] if rows else None)
+    return {"total": len(rows), "from_station": sum(r.source == "station" for r in rows), "from_demo": sum(r.source == "demo" for r in rows),
+            "log": log, "example": None if newest is None else {"wash_id": newest.wash_id, "source": newest.source, "record": newest.record}}
 
 
 # ---- parent PIN

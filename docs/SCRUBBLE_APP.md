@@ -1,6 +1,7 @@
 # Scrubble companion app
 
-The parents' app for the sink station: every wash, what was missed, and what it earned.
+The app for the sink station, in two views: a game for the kid and the numbers for the grown-up.
+Switch between them, and between phone and desktop layout, inside the app (`docs/design-spec.md`).
 Extends Andrew's parent app (`andrew` branch). AI-assisted (Claude); review before relying on it.
 
     camera -> laptop pipeline -> WashRecord -> wash queue (SQLite file) -> POST /api/v1/washes
@@ -19,7 +20,9 @@ See `docs/demo-runbook.md`. Development with hot reload: backend on 8010, then `
 | Family rewards, requests, high-fives, parent PIN | `src/convergent/backend/services/family.py`, `routes/family_v1.py` |
 | Tables | `backend/models.py`, migration `0003_family.py` |
 | Wash upload queue | `src/convergent/backend/outbox.py`, hooked in `pipeline.py: _end_wash` |
-| Web app | `web/src` (pages, components, art, styles) |
+| Web app | `web/src`: `pages/kid`, `pages/parent`, `components`, `art`, `styles`, `mode.tsx` (views and layouts), `live.tsx` (live feed) |
+| Trends for the grown-up view | `progression.insights()`, `GET /api/v1/app/insights?days=7|14|30|90` |
+| Sync log and the newest wash record | `GET /api/v1/app/sync` |
 | Demo family, simulated wash | `scripts/seed_demo_family.py`, `scripts/send_test_wash.py` |
 
 ## Rules (product choices, first guesses)
@@ -60,6 +63,8 @@ Changed in Andrew's code, on purpose:
   the same id is a 409 now.
 - `tests/integration/test_backend_api.py` expects migration `0003_family`.
 - His web pages were rewritten in the new visual style. His data hooks, router and live feed were kept and extended.
+- His later commits (Live page, rewards, Germ-dex, the zap rule `worth()`) were merged on 2026-11-24. The zap rule is
+  his. The Live page was ported to `pages/kid/KidLive.tsx`. His other pages were replaced by the two-view pages.
 
 ## Tests
 
@@ -68,11 +73,11 @@ Run on 2026-11-24 in a Linux container. No camera, Pi, projector or sample video
 | Command | Result |
 | --- | --- |
 | `.venv/bin/ruff check src tests scripts` | All checks passed |
-| `.venv/bin/python -m pytest -q tests --deselect tests/unit/test_show_window.py` | 294 passed, 6 skipped, 4 deselected |
+| `.venv/bin/python -m pytest -q tests --deselect tests/unit/test_show_window.py` | 300 passed, 6 skipped, 4 deselected |
 | `cd web && npm run typecheck` | exit 0 |
-| `cd web && npm test` | 3 passed |
+| `cd web && npm test` | 7 passed |
 | `cd web && npm run build` | exit 0 |
-| `cd web && npm run test:e2e` (Chrome, real backend) | 16 passed, run in America/Chicago and Asia/Tokyo |
+| `cd web && npm run test:e2e` (Chrome, real backend) | 17 passed, run in America/Chicago and Asia/Tokyo |
 
 `tests/unit/test_show_window.py` aborts here because it opens a window and there is no display. It aborts the
 same way on `andrew`. Run it on a Mac. The 6 skips need `data/samples/handwashing_missing_step.mp4`.
@@ -80,7 +85,8 @@ same way on `andrew`. Run it on a Mac. The 6 skips need `data/samples/handwashin
 Covered by tests: wash validation, duplicates, conflicts, concurrency, size and rate limits, token; active-child
 isolation; points cap, exact balance, concurrent requests, approve and decline, PIN; migration up and down with
 data; queue backoff, ordering, parking, restart, one upload one award; the queue through the real pipeline with
-scripted hands; every screen at 320, 360, 390, 430 and 1280 px; live update without reload; onboarding; errors.
+scripted hands; every screen in both views at 320, 390, 430 and 1280 px; the two switches; the live wash flow;
+live update without reload; onboarding; errors; insights and the sync log.
 
 ## Status
 
@@ -92,7 +98,7 @@ Implemented, not tested here:
 - Safari. Only Chrome was available.
 - A phone on the LAN.
 
-Not built: accounts, pairing, HTTPS, config sync, reminders, moving a wash to another child, a desktop layout,
+Not built: accounts, pairing, HTTPS, config sync, reminders, moving a wash to another child,
 PWA install, deployment anywhere.
 
 For the team to do: run the hardware day checklist with `--auto-wash --backend http` and confirm a real wash

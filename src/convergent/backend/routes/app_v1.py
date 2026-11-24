@@ -147,11 +147,15 @@ def wash_detail(wash_id: str, db: DbSession = Depends(get_db)) -> dict[str, Any]
     w = next(x for x in A.washes(db) if x.wash_id == wash_id)
     rec = row.record
     fived = F.high_fived(db, wash_id)
+    steps = [{"technique": st["technique"], "name": P.STEP_NAMES.get(st["technique"], st["technique"]), "seconds": st["seconds"],
+              "done": st["done"], "points": round(st["points"], 1)} for st in rec["score"]["steps"]]
     return {**_view(w, A.settings(db)), "seconds": rec["seconds"], "duration_s": rec["duration_s"], "soap_seen": rec.get("soap_seen"),
             "step_min_s": rec["score"]["step_min_s"], "total_min_s": rec["score"]["total_min_s"],
             "steps_required": rec["score"]["steps_required"], "session_id": row.session_id, "source": row.source,
             "received": A._utc(row.created_utc).isoformat(), "model": (rec.get("models") or {}).get("temporal_v2"),
-            "high_fived": None if fived is None else fived.isoformat()}
+            "high_fived": None if fived is None else fived.isoformat(), "steps": steps,
+            "time_points": round(w.points - sum(st["points"] for st in steps), 1), "started": rec["started_utc"],
+            "lag_s": round((A._utc(row.created_utc) - w.ended).total_seconds(), 1)}
 
 
 @router.delete("/api/v1/app/washes", dependencies=[Depends(require_parent)])

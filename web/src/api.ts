@@ -23,17 +23,18 @@ export type Child = { id: number; name: string; buddy: string; age_band: AgeBand
 export type Boss = { germ: string; zone: Zone; done: number; target: number; won: boolean };
 export type WashView = {
   wash_id: string; ended: string; day: string; time: string; label: string;
-  stars: number; points: number; finished: boolean; steps_done: number; zaps: number; reward_points: number; seconds_total: number;
+  stars: number; points: number; finished: boolean; steps_done: number; zaps: number; reward_points: number; capped: boolean; seconds_total: number;
   coverage: Record<Zone, number>; missed: Zone[];
 };
 export type WashDetail = WashView & {
   seconds: Record<string, number>; duration_s: number; soap_seen: boolean | null; step_min_s: number; total_min_s: number;
   steps_required: number; session_id: string; source: "station" | "demo"; received: string;
   model: { version?: string } | null; high_fived: string | null;
+  steps: { technique: string; name: string; seconds: number; done: boolean; points: number }[]; time_points: number; started: string; lag_s: number;
 };
 export type Spot = { zone: Zone; name: string; missed: number };
 export type Home = {
-  today: number; goal: number; avg_score: number | null; clean_washes: number; latest: WashView | null; tip: Spot | null;
+  today: number; zap_washes_today: number; goal: number; avg_score: number | null; clean_washes: number; latest: WashView | null; tip: Spot | null;
   parent_name: string; child: Child | null; streak: number; points: number; zaps: number; boss: Boss; onboarded: boolean;
 };
 export type DayProgress = { period: "day"; date: string; washes: number; goal: number; avg_score: number | null; zones: Record<Zone, number> };
@@ -67,6 +68,22 @@ export type Station = {
   backend: string; version: string; online: boolean; last_seen: string | null; last_wash: string | null; watching: number;
   devices: { device_id: string; status: string; last_seen: string | null }[];
   rules: { scrub_goal_s: number; step_min_s: number; steps_required: number; model: { version?: string } | null } | null;
+  demo_mode: boolean;
+};
+export type Insights = {
+  days: number; from: string; to: string; n: number; not_recognized: number; goal: number;
+  score: { mean: number | null; median: number | null; best: number | null; previous_mean: number | null; previous_n: number; change: number | null };
+  scrub: { mean_s: number | null; goal_s: number; reached_goal: number };
+  finished: number; perfect: number; days_with_wash: number; days_goal_met: number;
+  per_day: { date: string; washes: number; avg_score: number | null }[];
+  zones: { zone: Zone; name: string; coverage: number | null; full: number; partial: number; missed: number; n: number }[];
+  techniques: { technique: string; name: string; mean_s: number | null; done: number; n: number }[];
+  by_time: { block: string; from_hour: number; to_hour: number; washes: number; avg_score: number | null }[];
+};
+export type SyncLog = {
+  total: number; from_station: number; from_demo: number;
+  log: { wash_id: string; session_id: string; source: "station" | "demo"; ended: string; received: string; lag_s: number; points: number; bytes: number }[];
+  example: { wash_id: string; source: "station" | "demo"; record: Record<string, unknown> } | null;
 };
 export type ParentState = { pin_set: boolean; unlocked: boolean };
 

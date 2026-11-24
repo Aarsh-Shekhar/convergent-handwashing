@@ -1,63 +1,80 @@
-/* Scrubble design tokens. One place for colour, type, shape, depth and motion.
-   The world is an ocean at dusk: blue water up top, deep indigo below. */
+/* Scrubble has two looks that share one set of names.
+   Kid view: warm paper, flat colour, the sticker characters do the talking.
+   Grown-up view: a quiet white workspace for reading numbers. */
 :root {
-  /* world */
-  --ocean-top: #2b4d85;
-  --ocean: #213d68;
-  --dusk: #2a2158;
-  --midnight: #1f1440;
+  /* brand colours, used by both views */
+  --blue: #3f7be8;
+  --blue-edge: #2c5fc4;
+  --grape: #7b5cd6;
+  --sun: #ffc53d;
+  --sun-edge: #dc9a12;
+  --coral: #ef6f6c;
+  --mint: #2fae7d;
+  --navy: #27304f;
 
-  /* surfaces */
-  --panel: #2a3a66;
-  --panel-deep: #232c58;
-  --panel-violet: #4a3384;
-  --rim: rgba(142, 178, 235, 0.34);       /* the lit top edge of a raised surface */
-  --rim-soft: rgba(142, 178, 235, 0.16);
-  --well: rgba(12, 14, 46, 0.42);          /* pressed-in areas: tracks, inputs */
+  /* tints for tiles and tags */
+  --sky-tint: #dcebff;
+  --lilac-tint: #e9e2fb;
+  --butter-tint: #ffefc2;
+  --mint-tint: #d5f2e3;
+  --blush-tint: #fde0dd;
 
-  /* accents */
-  --aqua: #2bb1d6;
-  --aqua-deep: #1b83b0;
-  --violet: #8459c9;
-  --violet-deep: #5a3a9c;
-  --gold: #f6c64f;
-  --gold-deep: #d99a22;
-  --coral: #f58fa0;       /* missed spots: always paired with an icon or a word */
-  --coral-deep: #c9566e;
-  --mint: #5fdcaa;        /* washed, done */
-  --mint-deep: #2f9f7c;
+  /* one blue from light to dark, for "how much" (the hand heatmap) */
+  --seq-0: #edf1f6;
+  --seq-1: #cfe0f8;
+  --seq-2: #9dc0f1;
+  --seq-3: #6199e6;
+  --seq-4: #2f6fd3;
+  --seq-5: #1a4c9e;
 
-  /* text */
-  --ink: #f6f8ff;
-  --ink-soft: #b9c6ee;
-  --ink-faint: #8f9bd0;
-  --ink-on-gold: #4a2f05;
+  /* states: always shown with a word or a mark, never colour alone */
+  --good: #23875f;
+  --warn: #a8690a;
+  --bad: #c23d38;
 
-  /* type */
-  --font: "Nunito Variable", "Nunito", ui-rounded, system-ui, -apple-system, "Segoe UI", sans-serif;
-  --t-title: clamp(26px, 7.2vw, 30px);
-  --t-section: 19px;
-  --t-body: 15px;
-  --t-small: 13px;
-  --t-micro: 12px;
-  --t-data: 30px;
-
-  /* shape (4/8 rhythm) */
-  --r-panel: 24px;
-  --r-card: 20px;
-  --r-pill: 999px;
-  --gutter: 18px;
-
-  /* depth */
-  --lift: 0 10px 24px rgba(10, 8, 40, 0.38);
-  --lift-small: 0 5px 12px rgba(10, 8, 40, 0.34);
-  --inner-light: inset 0 1.5px 0 var(--rim), inset 0 -10px 18px rgba(14, 10, 50, 0.28);
-
-  /* motion */
   --ease: cubic-bezier(0.22, 0.9, 0.3, 1);
-  --pop: cubic-bezier(0.2, 1.3, 0.4, 1);
-  --fast: 140ms;
-  --slow: 520ms;
+}
 
-  color-scheme: dark;
+[data-view="kid"] {
+  --font: "Nunito Variable", "Nunito", ui-rounded, system-ui, sans-serif;
+  --bg: #fff8ec;
+  --surface: #ffffff;
+  --sunken: #f7eedd;
+  --line: #efe3cd;
+  --ink: #27304f;
+  --ink-2: #555e80;
+  --ink-3: #6e7594;
+  --accent: var(--blue);
+  --accent-edge: var(--blue-edge);
+  --fs: 16px;
+  --fs-small: 14px;
+  --r-card: 18px;
+  --r-ctl: 14px;
+  --edge: 3px;                 /* buttons and tiles sit on a flat darker edge, like a cut-out sticker */
+  --card-shadow: 0 1px 0 #e9dcc4;
+  --h1: 800 28px/1.15 var(--font);
+  --h2: 800 19px/1.25 var(--font);
+  --w-strong: 800;
+}
+
+[data-view="parent"] {
+  --font: "Inter Variable", "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --bg: #ffffff;
+  --surface: #ffffff;
+  --sunken: #f6f5f2;
+  --line: #e7e5e0;
+  --ink: #22252d;
+  --ink-2: #555a66;
+  --ink-3: #6f7480;
+  --accent: #2f6fd3;
+  --accent-edge: #2f6fd3;
+  --fs: 14px;
+  --fs-small: 13px;
+  --r-card: 10px;
+  --r-ctl: 8px;
+  --edge: 0px;
+  --card-shadow: none;
+  --h1: 650 22px/1.25 var(--font);
+  --h2: 600 15px/1.35 var(--font);
+  --w-strong: 600;
 }

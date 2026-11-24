@@ -268,3 +268,71 @@ def badges(washes: list[Wash], tz: str | None = None) -> list[dict[str, Any]]:
     rows.insert(0, {"id": "streak_5", "name": f"{STREAK_BADGE_DAYS}-day streak", "earned": best >= STREAK_BADGE_DAYS,
                     "have": min(best, STREAK_BADGE_DAYS), "need": STREAK_BADGE_DAYS})
     return rows
+
+
+# ---- parent analytics
+DAY_BLOCKS = [("Morning", 5, 11), ("Midday", 11, 14), ("Afternoon", 14, 18), ("Evening", 18, 22)]  # local hours; the rest is "Night"
+STEP_NAMES = {"palm_to_palm": "Palm to palm", "back_of_hand": "Back of hand", "interlaced_fingers": "Fingers interlaced",
+              "backs_of_fingers": "Backs of fingers", "thumb_rubbing": "Thumbs", "fingertip_rubbing": "Fingertips", "wrist_rubbing": "Wrists"}
+
+
+def _mean(xs: list[float]) -> float | None:
+    return None if not xs else sum(xs) / len(xs)
+
+
+def _median(xs: list[float]) -> float | None:
+    if not xs:
+        return None
+    ys, mid = sorted(xs), len(xs) // 2
+    return ys[mid] if len(ys) % 2 else (ys[mid - 1] + ys[mid]) / 2
+
+
+def insights(washes: list[Wash], now: datetime, tz: str, goal: int, days: int = 14, scrub_goal_s: float = 20.0) -> dict[str, Any]:
+    """Numbers for the parent view over the last ``days`` local days (today included).
+
+    Only washes where something was recognized are measured (``n``). Every figure is a plain mean, share or
+    count over those washes, so a parent can check it against the wash list."""
+    today = local_day(now, tz)
+    first = today - timedelta(days=days - 1)
+    span = _on(washes, tz, first, today)
+    ws = [w for w in span if counts(w)]
+    prev = [w for w in _on(washes, tz, first - timedelta(days=days), first - timedelta(days=1)) if counts(w)]
+    n = len(ws)
+    scores = [float(w.points) for w in ws]
+    scrub = [sum(w.seconds.values()) for w in ws]
+    covers = [coverage(w.seconds) for w in ws]
+    per_day = []
+    for i in range(days):
+        d = first + timedelta(days=i)
+        day = [w for w in ws if local_day(w.ended, tz) == d]
+        m = _mean([float(w.points) for w in day])
+        per_day.append({"date": d.isoformat(), "washes": len(day), "avg_score": None if m is None else round(m, 1)})
+    zones = []
+    for z in ZONES:
+        vals = [c[z] for c in covers]
+        m = _mean(vals)
+        zones.append({"zone": z, "name": ZONE_NAMES[z], "coverage": None if m is None else round(m, 3),
+                      "full": sum(v >= 1.0 for v in vals), "partial": sum(0 < v < 1.0 for v in vals), "missed": sum(v == 0 for v in vals), "n": n})
+    techniques = []
+    for t in STEPS:
+        secs = [w.seconds.get(t, 0.0) for w in ws]
+        m = _mean(secs)
+        techniques.append({"technique": t, "name": STEP_NAMES[t], "mean_s": None if m is None else round(m, 2),
+                           "done": sum(v >= STEP_MIN_S for v in secs), "n": n})
+    blocks = []
+    for name, lo, hi in [*DAY_BLOCKS, ("Night", 22, 29)]:
+        hit = [w for w in ws if lo <= (w.ended.astimezone(ZoneInfo(tz)).hour + (24 if w.ended.astimezone(ZoneInfo(tz)).hour < 5 else 0)) < hi]
+        m = _mean([float(w.points) for w in hit])
+        blocks.append({"block": name, "from_hour": lo % 24, "to_hour": hi % 24, "washes": len(hit), "avg_score": None if m is None else round(m, 1)})
+    mean, before = _mean(scores), _mean([float(w.points) for w in prev])
+    scrub_mean = _mean(scrub)
+    return {
+        "days": days, "from": first.isoformat(), "to": today.isoformat(), "n": n, "not_recognized": len(span) - n, "goal": goal,
+        "score": {"mean": None if mean is None else round(mean, 1), "median": _median(scores), "best": max(scores, default=None),
+                  "previous_mean": None if before is None else round(before, 1), "previous_n": len(prev),
+                  "change": None if mean is None or before is None else round(mean - before, 1)},
+        "scrub": {"mean_s": None if scrub_mean is None else round(scrub_mean, 1), "goal_s": scrub_goal_s, "reached_goal": sum(s >= scrub_goal_s for s in scrub)},
+        "finished": sum(w.finished for w in ws), "perfect": sum(all(v >= 1.0 for v in c.values()) for c in covers),
+        "days_with_wash": sum(1 for d in per_day if d["washes"]), "days_goal_met": sum(1 for d in per_day if d["washes"] >= goal),
+        "per_day": per_day, "zones": zones, "techniques": techniques, "by_time": blocks,
+    }

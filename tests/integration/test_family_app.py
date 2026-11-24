@@ -295,3 +295,29 @@ def test_a_flood_of_washes_is_slowed_down_with_a_retry_hint(client):
     assert codes[:app_v1.WASH_RATE] == [201] * app_v1.WASH_RATE and codes[-2:] == [429, 429]
     r = post(client, "one-more")
     assert r.status_code == 429 and r.headers["Retry-After"] == "15"
+
+
+# ---- parent analytics, score breakdown, sync log
+def test_wash_detail_shows_how_the_score_adds_up(client):
+    post(client, "w1", seconds={**ALL7, "thumb_rubbing": 0.0})
+    d = client.get("/api/v1/app/washes/w1").json()
+    assert len(d["steps"]) == 7 and {s["name"] for s in d["steps"]} >= {"Thumbs", "Palm to palm"}
+    assert round(sum(s["points"] for s in d["steps"]) + d["time_points"]) == d["points"]
+    assert d["lag_s"] >= 0 and d["started"] < d["ended"]
+
+
+def test_insights_and_the_sync_log_cover_only_the_active_child(client):
+    kid(client, "Mia")
+    post(client, "mia-1", seconds={**ALL7, "thumb_rubbing": 0.0})
+    post(client, "demo-mia-2", now() - timedelta(minutes=30))
+    kid(client, "Leo")
+    assert client.get("/api/v1/app/insights?days=7").json()["n"] == 0
+    assert client.get("/api/v1/app/sync").json() == {"total": 0, "from_station": 0, "from_demo": 0, "log": [], "example": None}
+    client.post("/api/v1/app/children/1/activate")
+    ins = client.get("/api/v1/app/insights?days=7").json()
+    assert ins["n"] == 2 and next(z for z in ins["zones"] if z["zone"] == "thumbs")["missed"] == 1
+    sync = client.get("/api/v1/app/sync").json()
+    assert (sync["total"], sync["from_station"], sync["from_demo"]) == (2, 1, 1)
+    assert sync["log"][0]["wash_id"] == "mia-1" and sync["log"][0]["bytes"] < 4000 and sync["log"][0]["lag_s"] >= 0
+    assert sync["example"]["wash_id"] == "mia-1" and "seconds" in sync["example"]["record"]   # the newest wash that came from the sink
+    assert client.get("/api/v1/app/insights?days=5").status_code == 422

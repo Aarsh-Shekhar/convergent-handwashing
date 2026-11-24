@@ -1,5 +1,3 @@
-# the browser tests write every width here; only the 390 px set, the flow and onboarding are kept in git
+# the browser tests write every width here; the 390 px and 1280 px sets and the flow pictures are kept in git
 *-320.png
-*-360.png
 *-430.png
-*-1280.png

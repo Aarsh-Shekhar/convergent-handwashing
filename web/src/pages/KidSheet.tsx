@@ -2,9 +2,8 @@
 import { useState, type FormEvent } from "react";
 import { send, type AgeBand, type ApiError, type Child } from "../api";
 import { BUDDIES, Creature } from "../components/Creature";
-import { GameButton, InlineError, Sheet } from "../components/ui";
+import { Button, InlineError, Sheet } from "../components/ui";
 import { useLive } from "../live";
-import "./KidSheet.css";
 
 export const AGES: AgeBand[] = ["3-4", "5-6", "7-8", "9+"];
 
@@ -17,7 +16,7 @@ export function KidFields({ name, setName, buddy, setBuddy, age, setAge }: {
         <span id="buddy-label">Pick a buddy</span>
         <div className="buddies" role="radiogroup" aria-labelledby="buddy-label">
           {BUDDIES.map(([id, colour]) => (
-            <button key={id} type="button" role="radio" aria-checked={buddy === id} aria-label={`${colour} Bubbles`} className="buddy" onClick={() => setBuddy(id)}>
+            <button key={id} type="button" role="radio" aria-checked={buddy === id} aria-label={`${colour} Bubbles`} className="buddy-pick" onClick={() => setBuddy(id)}>
               <Creature id={id} size={54} />
             </button>
           ))}
@@ -59,8 +58,8 @@ export function KidSheet({ kid, onClose }: { kid?: Child; onClose: () => void })
         <KidFields {...{ name, setName, buddy, setBuddy, age, setAge }} />
         {error && <InlineError error={error} />}
         <div className="actions">
-          <GameButton type="submit" wide disabled={!name.trim() || busy}>{kid ? "Save" : "Add kid"}</GameButton>
-          <GameButton tone="quiet" wide onClick={onClose}>Cancel</GameButton>
+          <Button type="submit" wide disabled={!name.trim() || busy}>{kid ? "Save" : "Add kid"}</Button>
+          <Button tone="quiet" wide onClick={onClose}>Cancel</Button>
         </div>
       </form>
     </Sheet>

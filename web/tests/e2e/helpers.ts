@@ -34,9 +34,22 @@ export function watchConsole(page: Page): string[] {
   return seen;
 }
 
+/** Send what the wash software sends 5 times a second while someone scrubs. */
+export async function stationLive(request: APIRequestContext, now: string | null, seconds: Record<string, number>, hands = 2) {
+  const session = "ses_e2e_live";
+  await request.post("/api/v1/sessions", { headers: { Authorization: `Bearer ${TOKEN}` }, data: { session_id: session, source_id: "cam", width: 640, height: 480, target_fps: 15, device_id: null, processing_config: {}, model_versions: {}, capture_clock: "monotonic" } });
+  const steps = STEPS.map((t) => ({ technique: t, seconds: seconds[t] ?? 0, done: (seconds[t] ?? 0) >= 3 }));
+  const total = steps.reduce((a, s) => a + s.seconds, 0);
+  const r = await request.post(`/api/v1/sessions/${session}/live`, { headers: { Authorization: `Bearer ${TOKEN}` }, data: {
+    ts: Date.now() / 1000, hands, fused: { status: now ? "valid" : "unknown", technique: now, confidence: 0.9 },
+    score: { steps, steps_done: steps.filter((s) => s.done).length, total_s: total, points: Math.round(total * 2), stars: 2, finished: false, step_min_s: 3, total_min_s: 20 } } });
+  expect(r.status()).toBe(202);
+}
+
 export async function expectNoSidewaysScroll(page: Page) {
   expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
 }
 
-export const hudNumber = async (page: Page, label: RegExp) =>
-  Number((await page.getByRole("img", { name: label }).getAttribute("aria-label"))!.split(" ")[0]);
+/** A number shown on a kid tile ("points", "zaps", "days in a row"). */
+export const tile = async (page: Page, label: string) =>
+  Number((await page.locator(".tile", { hasText: label }).locator("b").textContent())!.replace(/,/g, ""));

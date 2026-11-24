@@ -2,7 +2,7 @@
 // grown-ups: once a PIN is set, those actions ask for it. The unlock lasts 15 minutes and lives in memory only.
 import { createContext, useCallback, useContext, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { api, send, setParentToken, type ApiError, type ParentState } from "./api";
-import { GameButton, Sheet } from "./components/ui";
+import { Button, Sheet } from "./components/ui";
 
 type Gate = { ask: () => Promise<boolean>; lock: () => void };
 const Ctx = createContext<Gate>({ ask: async () => true, lock: () => {} });
@@ -53,10 +53,10 @@ export function ParentProvider({ children }: { children: ReactNode }) {
         <Sheet title="Grown-ups only" lede="Enter the parent PIN to continue." onClose={() => finish(false)}>
           <form onSubmit={submit}>
             <PinField value={pin} onChange={setPin} label="Parent PIN" autoFocus />
-            {error && <p className="inline-error" role="alert">{error}</p>}
+            {error && <p className="alert" role="alert">{error}</p>}
             <div className="actions">
-              <GameButton type="submit" wide disabled={pin.length < 4}>Unlock</GameButton>
-              <GameButton tone="quiet" wide onClick={() => finish(false)}>Cancel</GameButton>
+              <Button type="submit" wide disabled={pin.length < 4}>Unlock</Button>
+              <Button tone="quiet" wide onClick={() => finish(false)}>Cancel</Button>
             </div>
           </form>
         </Sheet>

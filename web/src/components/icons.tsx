@@ -1,8 +1,8 @@
-// Scrubble's icon family: one 24px grid, 2.2px rounded strokes, a soft fill for weight.
+// Scrubble's icon family: one 24px grid, 2px rounded line icons.
 // Drawn for this app so every screen shares one hand.
 import type { ReactNode } from "react";
 
-const soft = { fill: "currentColor", fillOpacity: 0.24 } as const;
+const soft = {} as const; // shapes that used to carry a tint are plain outlines now
 
 const PATHS = {
   home: <><path {...soft} d="M4.5 11 12 4.5l7.5 6.5v7.2a1.8 1.8 0 0 1-1.8 1.8H6.3a1.8 1.8 0 0 1-1.8-1.8z" /><path d="M9.6 20v-4.4a2.4 2.4 0 0 1 4.8 0V20" /></>,
@@ -43,6 +43,9 @@ const PATHS = {
   info: <><circle {...soft} cx="12" cy="12" r="8.2" /><path d="M12 11v5.2" /><circle cx="12" cy="7.9" r="1.1" fill="currentColor" stroke="none" /></>,
   kid: <><circle {...soft} cx="12" cy="9" r="4.2" /><path {...soft} d="M4.8 20a7.2 7.2 0 0 1 14.4 0z" /></>,
   retry: <><path d="M19 12a7 7 0 1 1-2.3-5.2" /><path d="M19.2 4.5v4h-4" /></>,
+  phone: <><rect x="6.5" y="3" width="11" height="18" rx="2.6" /><path d="M10.5 18h3" /></>,
+  desktop: <><rect x="3" y="4.5" width="18" height="12" rx="2" /><path d="M9 20h6M12 16.5V20" /></>,
+  live: <><circle cx="12" cy="12" r="2.4" /><path d="M7.2 7.2a6.8 6.8 0 0 0 0 9.6M16.8 7.2a6.8 6.8 0 0 1 0 9.6M4.6 4.6a10.4 10.4 0 0 0 0 14.8M19.4 4.6a10.4 10.4 0 0 1 0 14.8" /></>,
   out: <><path d="M10 4.5H6.5a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2H10" /><path d="M14.5 8l4 4-4 4M18.5 12H9.5" /></>,
 } satisfies Record<string, ReactNode>;
 
@@ -50,7 +53,7 @@ export type IconName = keyof typeof PATHS;
 
 export function Icon({ name, size = 24 }: { name: IconName; size?: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2}
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}
       strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
       {PATHS[name]}
     </svg>

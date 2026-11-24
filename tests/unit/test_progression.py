@@ -232,3 +232,28 @@ def test_a_test_zap_gift_adds_to_the_balance_without_being_a_germ():
     assert r["zaps"] == 510
     assert {g["id"] for g in r["germs"] if g["owned"]} == {"gunky"}
     assert P.germdex([], gift, at(5), TZ)["owned"] == 1
+
+
+def test_insights_are_plain_means_and_counts_over_recognized_washes_in_the_window():
+    washes = [wash(at(1), ALL7, stars=5, points=100),                                   # outside a 7-day window ending on the 10th
+              wash(at(8, 14), ALL7, stars=5, points=100),                              # 08:00 Chicago: morning
+              wash(at(9, 18), {**ALL7, "thumb_rubbing": 0.0}, stars=3, points=70),     # noon: midday
+              wash(at(10, 18), {**ALL7, "thumb_rubbing": 1.5}, stars=3, points=76),
+              wash(at(10, 19), stars=0, points=0)]                                      # nothing recognized: not measured
+    r = P.insights(washes, at(10, 23), TZ, goal=2, days=7)
+    assert (r["from"], r["to"], r["n"], r["not_recognized"]) == ("2026-11-04", "2026-11-10", 3, 1)
+    assert r["score"] == {"mean": 82.0, "median": 76.0, "best": 100.0, "previous_mean": 100.0, "previous_n": 1, "change": -18.0}
+    thumbs = next(z for z in r["zones"] if z["zone"] == "thumbs")
+    assert thumbs == {"zone": "thumbs", "name": "Thumbs", "coverage": 0.5, "full": 1, "partial": 1, "missed": 1, "n": 3}
+    assert next(z for z in r["zones"] if z["zone"] == "palms")["coverage"] == 1.0
+    assert next(t for t in r["techniques"] if t["technique"] == "thumb_rubbing") == {"technique": "thumb_rubbing", "name": "Thumbs", "mean_s": 1.83, "done": 1, "n": 3}
+    assert [d["washes"] for d in r["per_day"]] == [0, 0, 0, 0, 1, 1, 1] and r["per_day"][-1]["avg_score"] == 76.0
+    assert (r["days_with_wash"], r["days_goal_met"], r["perfect"], r["finished"]) == (3, 0, 1, 3)
+    assert {b["block"]: b["washes"] for b in r["by_time"]} == {"Morning": 1, "Midday": 2, "Afternoon": 0, "Evening": 0, "Night": 0}
+    assert r["scrub"] == {"mean_s": 25.8, "goal_s": 20.0, "reached_goal": 3}   # (28 + 24 + 25.5) / 3
+
+
+def test_insights_with_no_washes_have_no_averages_instead_of_zeros():
+    r = P.insights([], at(10), TZ, goal=6, days=7)
+    assert r["n"] == 0 and r["score"]["mean"] is None and r["scrub"]["mean_s"] is None
+    assert all(z["coverage"] is None for z in r["zones"]) and all(d["avg_score"] is None for d in r["per_day"])

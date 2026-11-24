@@ -47,6 +47,14 @@ Parked: motion sensor wake-up. The camera already starts washes (`--auto-wash`).
 
 ## Log
 
+### 2026-11-24: Scrubble companion app, two views (branch `scrubble-companion`, Aarsh)
+
+- Built on Andrew's backend and web app. Kid view (`/kid`, game) and grown-up view (`/`, tables, charts, hand heatmap), with Phone / Desktop layout switch. Details: `docs/SCRUBBLE_APP.md`, `docs/design-spec.md`.
+- Station page shows how a wash gets from the sink to the app: live feed, what is sent and not sent, the record, a sync log with the delay per wash.
+- Washes upload through a queue file (`backend/outbox.py`) so none is lost when the backend is down.
+- Tested in a Linux container only: pytest 300 passed, vitest 7, Playwright 17 in Chrome. Not tested: camera, Pi, projector, Safari, a real phone.
+- Run it: `bash START_SCRUBBLE_DEMO.command` (demo family, made-up history tagged Demo).
+
 ### 2026-11-17: gameplay loop research, parent version first
 
 - Three research agents: comparable products, child coaching and rewards, US/Texas data rules. Full reports in `RESEARCH.md`, takeaways above.

@@ -1,48 +1,72 @@
 # Scrubble design spec and visual review
 
-Target: `references/visual-target.png` (style only). Structure: the team's Figma screens 01 to 18.
-Tokens are in `web/src/styles/tokens.css`; controls in `styles/controls.css`. Screenshots: `docs/qa/screens/`.
+The app has two views of the same data and two layouts. Tokens: `web/src/styles/tokens.css`.
+Shared rules: `styles/app.css`. Per view: `styles/kid.css`, `styles/parent.css`. Screenshots: `docs/qa/screens/`.
+
+## The two switches
+
+| Switch | Where | What it does |
+| --- | --- | --- |
+| Kid / Grown-up | side bar on desktop, top bar on phone | Kid = every route under `/kid`. Grown-up = everything else. Going to Grown-up asks for the parent PIN if one is set. |
+| Phone / Desktop | same place, only on a wide screen | Desktop = side bar and wide pages. Phone = the same app inside a phone frame (an iframe of the same URL). Saved in the browser. A real phone always gets the phone layout. |
+
+## Look
+
+Changed on 2026-11-24 after review: the first version read as glossy and over-rounded.
+
+- Flat fills. No gradients on controls, no glow, no glass. One shadow, used on sheets and the toast only.
+- Kid view: Nunito, warm paper background, flat pastel tiles, 12 px corners, buttons with a 3 px darker bottom edge.
+- Grown-up view: Inter, white, hairline borders, tables, 6 px corners, one blue accent. Numbers use tabular figures.
+- Germ art and the Phizzy material (names, zones, the story) are unchanged. The scene behind Bubbles is flat shapes.
+- Status is never colour alone: every state has a word or an icon next to it.
 
 ## Screens
 
-| Route | Figma | Composition | Notes |
-| --- | --- | --- | --- |
-| `/` | 11 Home | Greeting, child pills, purple HUD (points, zaps, streak), the day panel with Bubbles in Bubble Bay, four round shortcuts, latest wash, coach tip, boss strip | "5 days streak" moved into the HUD. The tip appears after 3 washes in the week. |
-| `/history` | 12 | Today / Week / Month, rows grouped by local day with a score ring | Shows 60 rows, then "Show more" |
-| `/history/:id` | 13 | Result panel (creature, stars, score, earned), three figures, palm and back hand map, zone bars, coach note, high-five, sync proof | "12/14 germs zapped" is replaced by steps done: germ counts are not recorded |
-| `/progress` | 14 | Trends (Day / Week / Month) or Adventure map | Trouble spots say "missed 4 of 5", not a bare percent. Thumb Wrestle mode is left out: the station has no such mode. |
-| `/rewards` | 15 | Vault with chest, family rewards, requests, badges, the points rule | Redeem asks; a grown-up approves |
-| `/germ-dex` | 16 | Boss panel, 2-column collection, detail sheet | 8 defined germs. The 4 undefined slots of the lofi are not drawn. |
-| `/routines` | 17 | Routines with toggles, daily goal, reminders | Both reminders are shown switched off and labelled not available |
-| `/settings` | 18 | Station status, game facts, family, privacy, delete | Timer, step time and model are read-only |
-| `/onboarding` | 01 to 10 | Splash, 3 story pages, parent, kid, station, camera, routines, done | No Apple or Google sign-in, no pairing: neither exists |
+| Route | View | What is on it |
+| --- | --- | --- |
+| `/kid` | Kid | Today's washes against the goal, Bubbles, zaps, points, streak, latest wash, boss |
+| `/kid/live` | Kid | Waiting, scrubbing (step tiles fill from the live feed), result |
+| `/kid/wash/:id` | Kid | Stars, hands with washed and missed zones, what it earned |
+| `/kid/map` | Kid | Adventure map, places open at 0, 10, 25, 50 rewarded washes |
+| `/kid/germs` | Kid | Collection, buy with zaps, boss |
+| `/kid/rewards` | Kid | Points, family rewards, ask for one, badges |
+| `/` | Grown-up | Range picker, 4 figures, score per wash, washes per day, hand heatmap, recent washes |
+| `/washes`, `/washes/:id` | Grown-up | Table of washes. Detail: the score arithmetic line by line, zones table, how the wash arrived, high-five |
+| `/insights` | Grown-up | Heatmap with counts, seconds per step against the 3 s target, time of day, goal days |
+| `/rewards` | Grown-up | Requests to approve, reward list, points ledger rule |
+| `/station` | Grown-up | How a wash gets from the sink to the app (see below) |
+| `/settings` | Grown-up | Family, routines, PIN, privacy, delete, what is not built |
+| `/onboarding` | none | Tour and set-up, ends in the kid view |
+
+## Station page: the sync story
+
+Written so a judge can follow it without help. Top to bottom:
+
+1. Four steps in a row: camera sees hands, laptop recognizes the steps, the wash record is sent, the app updates.
+   Each step shows its real state now (for example "last message 0.4 s ago").
+2. Live from the sink: seconds per step as they arrive, 5 times a second.
+3. What is sent (score, seconds per step, times) and what is never sent (video, pictures, sound, names, faces).
+4. The actual JSON of the newest wash record.
+5. Sync log: each wash, where it came from (Sink or Demo), when it ended, when it arrived, the delay, the size.
 
 ## Honest-data rules in the UI
 
-- A zone is washed at 3 s of its motion, partly below that, missed at 0. Missed zones are coral, hatched and named.
-- A wash with nothing recognized shows "Nothing recognized" and grey "Not seen" zones, never six misses or a perfect scrub.
-- "Perfect scrub" needs every zone at full time.
-- Seeded and simulated washes carry a "Demo data" tag on their detail page.
-- "Station live / idle / offline" reflects messages that arrived, nothing else.
+- A zone is washed at 3 s of its motion, partly below that, missed at 0.
+- A wash with nothing recognized says so. It is not shown as six misses or as a perfect scrub, and is left out of averages (counted separately).
+- Seeded and simulated washes carry a "Demo" tag everywhere they appear. Real ones say "Sink".
+- The station status reflects messages that arrived, nothing else.
+- Every chart has its numbers in a table or a sentence next to it. Heatmap cells show "washed in 9 of 12".
+- The heatmap uses one blue from light to dark. Charts with one series have no legend.
 
-## Visual review (390 x 844 unless noted)
+## Visual review
 
-Checked against the target after each screen was built. Changes made after looking:
-
-1. Home: reeds and bubbles covered the stats. Reeds lowered, bubbles moved right.
-2. Wash detail: the three figure tiles were misaligned (stylesheet order). Fixed. Sync time used the wrong date. Fixed.
-3. Map: the island sat small in a tall empty frame and the castle roof was cut off. Reframed. Closed places were near black; now dusk blue.
-4. Progress: a falling average was shown in green. Now neutral; only a rise is green.
-5. 320 px: Bubbles covered "Clean washes" on Home, and reward titles ran under the Redeem button. Both fixed.
-6. "See all" was 29 px tall. Now 44 px.
-
-Against the checklist: ocean-to-purple world yes; one hero per screen yes; rim-lit round controls and one icon
-family yes; Figma hierarchy kept; each screen has its own layout; locked, loading, empty and error states exist.
+Looked at by screenshot at 390 and 1280 px in both views, and 320 and 430 px in the browser tests.
+Fixed after looking: tables pushing the phone layout sideways, a class name clash that broke the heatmap scale
+on desktop, switch buttons and the stepper under 44 px, the toast sitting off centre.
 
 Remaining gaps, for the team's sign-off:
 
-- The target's illustration is richer than the hand-written SVG here, most visibly on the map and Home panel.
+- The map and scene art are simple hand-written SVG.
 - Kings and the rainbow germ are colour-shifted stand-ins.
-- Onboarding story pages are plain next to the main screens.
-- Desktop keeps the phone column centred. There is no two-column layout.
-- Contrast was checked by eye, not with a tool. No screen reader pass was done beyond roles and labels in tests.
+- Contrast was checked by eye. No screen reader pass beyond roles and labels in tests.
+- Only Chrome was available. Safari and a real phone are untested.

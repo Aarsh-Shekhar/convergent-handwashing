@@ -7,7 +7,6 @@ import prickle from "../assets/prickle.png";
 import bubbles from "../assets/scrubby.png";
 import smudge from "../assets/smudge.png";
 import sneezel from "../assets/sneezel.png";
-import "./Creature.css";
 
 type Look = { art: string; filter?: string; crown?: boolean; ratio: number };
 // width / height of each drawing, so a creature never shifts the layout while it loads

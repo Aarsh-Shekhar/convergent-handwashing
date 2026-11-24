@@ -16,7 +16,8 @@ if [ ! -x .venv/bin/python ]; then
 fi
 
 echo "Building the app..."
-(cd web && { [ -d node_modules ] || npm ci --silent; } && npm run build --silent)
+# install again when the package list changed (for example after a git pull)
+(cd web && { [ -d node_modules ] && [ ! package-lock.json -nt node_modules/.package-lock.json ] || npm ci --silent; } && npm run build --silent)
 
 # a token just for this demo run (the seed script and the backend must share it)
 export CONVERGENT_API_TOKEN="${CONVERGENT_API_TOKEN:-demo-$(.venv/bin/python -c 'import secrets;print(secrets.token_urlsafe(24))')}"
@@ -34,9 +35,11 @@ cat <<MSG
 
   Scrubble demo is running.
 
-  Use it as a parent or kid:   $URL/
+  Grown-up view (numbers):     $URL/
+  Kid view (game):             $URL/kid
+  How sync works, live:        $URL/station
   First-run tour:              $URL/onboarding
-  Phone-size view:             in Chrome press Cmd+Option+I, then Cmd+Shift+M, pick iPhone 14 Pro Max
+  Switch Kid / Grown-up and Phone / Desktop with the two switches in the app's side bar.
 
   Developer side:
     API docs you can click:    $URL/docs

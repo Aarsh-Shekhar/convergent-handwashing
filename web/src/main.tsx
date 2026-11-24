@@ -1,7 +1,9 @@
 import "@fontsource-variable/nunito";
+import "@fontsource-variable/inter";
 import "./styles/tokens.css";
-import "./styles/base.css";
-import "./styles/controls.css";
+import "./styles/app.css";
+import "./styles/kid.css";
+import "./styles/parent.css";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App";

@@ -7,7 +7,6 @@ import gunky from "../assets/gunky.png";
 import prickle from "../assets/prickle.png";
 import bubbles from "../assets/scrubby.png";
 import sneezel from "../assets/sneezel.png";
-import "./WorldMap.css";
 
 const TW = 34, TH = 17, ZH = 26, OX = 195, OY = 196;
 type P3 = readonly [x: number, y: number, z: number];
@@ -119,11 +118,11 @@ export function WorldMap({ data }: { data: Adventure }) {
         <linearGradient id={`${id}c`} x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#f0a98c" /><stop offset="1" stopColor="#d07a78" /></linearGradient>
         <linearGradient id={`${id}k`} x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#a892ea" /><stop offset="1" stopColor="#7460c4" /></linearGradient>
         <linearGradient id={`${id}f`} x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#c9fbff" /><stop offset="1" stopColor="#58dcd8" /></linearGradient>
-        <radialGradient id={`${id}sea`} cx="0.5" cy="0.62" r="0.6"><stop offset="0" stopColor="#3fd0c4" stopOpacity="0.5" /><stop offset="1" stopColor="#3fd0c4" stopOpacity="0" /></radialGradient>
+        <radialGradient id={`${id}sea`} cx="0.5" cy="0.62" r="0.6"><stop offset="0" stopColor="#ffffff" stopOpacity="0.7" /><stop offset="1" stopColor="#ffffff" stopOpacity="0" /></radialGradient>
       </defs>
       <rect width="390" height="400" fill={`url(#${id}sea)`} />
       {/* far kelp towers */}
-      <g fill="#2f5f9e" opacity="0.55">
+      <g fill="#a9cdef" opacity="0.7">
         <rect x="20" y="150" width="26" height="170" rx="13" /><rect x="52" y="110" width="34" height="200" rx="17" /><rect x="304" y="120" width="34" height="190" rx="17" /><rect x="344" y="166" width="26" height="150" rx="13" />
       </g>
 

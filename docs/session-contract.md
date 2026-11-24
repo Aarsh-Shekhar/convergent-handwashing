@@ -60,6 +60,13 @@ There is no separate heartbeat. The pipeline's existing live updates (`POST /ses
 set "last seen". `GET /api/v1/app/station` reports `online` only if one arrived in the last 15 s. It is kept in
 memory, so it reads "not heard from" after a backend restart.
 
+## What the app reads
+
+- `/ws/v1/observations`: `live` messages (hands seen, current step, seconds per step, score) drive the kid's Live
+  screen and the Station page. `wash_saved` makes every open screen reload its numbers.
+- `GET /api/v1/app/sync`: the last washes with source, end time, arrival time, delay and size, plus the newest
+  record as stored. This is what the Station page's sync log shows. Scoped to the active child.
+
 ## Not built
 
 Per-device tokens, pairing codes, HTTPS, config sent back to the station. The shared token and plain HTTP are

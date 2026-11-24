@@ -23,7 +23,7 @@ Terminal 2:
 
     .venv/bin/python scripts/seed_demo_family.py --url http://127.0.0.1:8000 --reset
 
-Open http://127.0.0.1:8000/. You see Sam with Mia (active) and Leo. Mia has 24 washes, about 1,000 points,
+Open http://127.0.0.1:8000/ (grown-up view) or http://127.0.0.1:8000/kid (kid view). You see Sam with Mia (active) and Leo. Mia has 24 washes, about 1,000 points,
 one germ bought, and is one wash away from Soap Canyon on the map.
 
 Send a simulated wash to watch the app react live (tagged "Demo data", never claim it as real):
@@ -35,7 +35,7 @@ the reset endpoint does not exist outside demo mode. To throw the demo away, del
 
 ## B. Real station feeding the demo family (the pitch)
 
-Keep Terminal 1 and the seeded family from A. Check that Mia is the selected child on Home. Then, from your own
+Keep Terminal 1 and the seeded family from A. Check that Mia is the selected child (the Child picker). Then, from your own
 Terminal app (the camera needs its permission):
 
     .venv/bin/python -m convergent.cli camera --device 1 --show --game --auto-wash --save-results --backend http
@@ -45,11 +45,13 @@ projector steps are unchanged: `docs/HARDWARE_DAY_RUNBOOK.md`.
 
 Wash. Four seconds after the hands leave, the wash is saved. Expected in the open app, with no reload:
 
-1. Toast "New wash synced".
-2. Home: goal ring and points go up; "Station live" shows while the camera run is going.
-3. Latest wash opens the detail page. The "Wash ID" line at the bottom matches
-   `runs/<session>/washes.jsonl` on the laptop and has no "Demo data" tag.
-4. Progress, Adventure map: Soap Canyon is open if this was Mia's first rewarded real wash after seeding.
+1. Kid view, Live: the step tiles fill while the hands scrub, then the result shows.
+2. Toast "New wash from the sink" in either view.
+3. Kid view, Home: the goal count and points go up.
+4. Grown-up view, Station: step 3 and 4 show the new wash, and it is the top row of the sync log tagged "Sink",
+   with the delay between the wash ending and the app receiving it. Its wash ID matches
+   `runs/<session>/washes.jsonl` on the laptop.
+5. Grown-up view, Washes: the new row opens the score arithmetic and the zones table.
 
 Proof to capture separately (not for the video):
 
@@ -59,15 +61,15 @@ Proof to capture separately (not for the video):
 
 ## 30 second click path
 
-Viewport: Chrome device toolbar, 430 x 932, zoom so the column fills the height. Start on Home with Mia selected.
+Desktop layout on the laptop, or Phone layout to show the phone frame. Start in the kid view on Live, Mia selected.
 
 | Time | Do | Say only if true |
 | --- | --- | --- |
-| 0 to 4 s | Home is open as the wash ends. Toast, ring and points move. | "That wash just came from the sink." |
-| 4 to 11 s | Tap the latest wash. Stars, score, hand map. | Name a missed zone only if the map shows one. |
-| 11 to 17 s | Germ-dex tab. Boss progress, collection. | "Germs are game characters tied to parts of the hand." |
-| 17 to 23 s | Rewards tab. Points and the next family reward. | Do not redeem on camera. |
-| 23 to 30 s | Progress tab, then Adventure map. | "The map moves with real washes." |
+| 0 to 8 s | Kid view, Live, while someone washes. Tiles fill, then the result. | "That is coming from the sink right now." |
+| 8 to 13 s | Kid Home, then Germs. | "Germs are game characters tied to parts of the hand." |
+| 13 to 20 s | Switch to Grown-up. Overview: score line, hand heatmap. | Name a weak zone only if the heatmap shows one. |
+| 20 to 26 s | Station. The four steps, the sync log's top row. | "Only numbers are sent. No video leaves the laptop." |
+| 26 to 30 s | Open that wash. The score arithmetic. | "The score is recognized scrubbing time." |
 
 Do not say: clean, germ-free, bacteria removed, clinically, detects soap. The score is recognized scrubbing
 time. Accuracy for Q&A is in `docs/PITCH_INFO.md`.

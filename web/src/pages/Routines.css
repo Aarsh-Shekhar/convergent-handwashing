@@ -1,7 +1,0 @@
-.routines .row .name, .routines .row .sub, .settings .row .name, .settings .row .sub { display: block; }
-.routine-open { padding: 0; min-height: 44px; box-shadow: none !important; color: inherit; }
-.routines .add { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; margin-top: 4px; }
-.routines .note { margin: 12px 6px 16px; line-height: 1.45; }
-.routines .goal { display: flex; align-items: center; gap: 12px; }
-.routines .goal .name { font: 800 15px/1.25 var(--font); } .routines .goal .sub { font: 600 var(--t-small)/1.3 var(--font); color: var(--ink-faint); }
-.routines .goal .grow { flex: 1; }
