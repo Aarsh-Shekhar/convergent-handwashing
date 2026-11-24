@@ -107,8 +107,9 @@ def trouble_spots(ws: list[Wash]) -> list[dict[str, Any]]:
 
 
 def label(local: datetime, routines: list[dict[str, Any]], window_min: int = 60) -> str:
-    """Name a wash after the switched-on routine closest in time (within ``window_min``), else "Wash"."""
-    best, gap = "Wash", window_min + 1
+    """Name a wash after the switched-on routine closest in time (within ``window_min``), else by time of day."""
+    best = "Morning wash" if local.hour < 12 else "Afternoon wash" if local.hour < 17 else "Evening wash"
+    gap = window_min + 1
     for r in routines:
         if r.get("on") and r.get("time"):
             h, mi = map(int, r["time"].split(":"))

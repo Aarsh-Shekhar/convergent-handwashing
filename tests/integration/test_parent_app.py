@@ -124,3 +124,14 @@ def test_saved_wash_reaches_the_live_feed(live_server):
         assert r.status_code == 201
         msg = json.loads(sub.recv(timeout=5))
     assert msg["type"] == "wash_saved" and msg["wash"]["wash_id"] == "w1" and msg["wash"]["zaps"] == 10
+
+
+def test_first_requests_at_the_same_time_do_not_fail(tmp_path):
+    """A fresh database gets its settings row from whichever request comes first; the others must not crash."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    url = f"sqlite:///{tmp_path / 'race.db'}"
+    with TestClient(create_app(Settings(api_token=TOKEN, database_url=url, log_dir="logs"), url), raise_server_exceptions=False) as c:
+        with ThreadPoolExecutor(8) as pool:
+            codes = list(pool.map(lambda p: c.get(p).status_code, ["/api/v1/app/settings", "/api/v1/app/home"] * 8))
+    assert codes == [200] * 16
