@@ -1,35 +1,41 @@
 // One WebSocket to the backend's live feed (/ws/v1/observations), shared by every page.
-//   live        the wash software's latest `live` message (5 per second while it runs)
-//   saved       the latest wash the station saved (`wash_saved`); savedCount makes pages refetch
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+//   saved      the latest wash the station saved (`wash_saved`)
+//   epoch      goes up whenever pages should load again: a wash was saved, the active child changed,
+//              or the connection came back after a drop (washes may have landed meanwhile)
+//   liveAt     when the wash software last sent a `live` update (it sends 5 a second while it runs)
+// If the socket cannot stay open, pages still catch up by polling every 20 s.
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { WashView } from "./api";
 
-export type LiveMsg = {
-  ts: number; hands: number;
-  fused?: { status: string; technique: string | null; confidence: number | null };
-  active?: { technique: string; supported_s: number; validated: boolean } | null;
-  score?: { steps: { technique: string; seconds: number; done: boolean }[]; steps_done: number; total_s: number; points: number; stars: number; finished: boolean; step_min_s: number } | null;
-  wash?: unknown;
-};
-type LiveState = { connected: boolean; live: LiveMsg | null; liveAt: number; saved: WashView | null; savedCount: number };
+type LiveState = { connected: boolean; liveAt: number; saved: WashView | null; epoch: number };
+type Live = LiveState & { refresh: () => void };
 
-const Ctx = createContext<LiveState>({ connected: false, live: null, liveAt: 0, saved: null, savedCount: 0 });
+const Ctx = createContext<Live>({ connected: false, liveAt: 0, saved: null, epoch: 0, refresh: () => {} });
 export const useLive = () => useContext(Ctx);
 
+const POLL_MS = 20_000;
+
 export function LiveProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<LiveState>({ connected: false, live: null, liveAt: 0, saved: null, savedCount: 0 });
+  const [state, setState] = useState<LiveState>({ connected: false, liveAt: 0, saved: null, epoch: 0 });
+  const refresh = useCallback(() => setState((s) => ({ ...s, epoch: s.epoch + 1 })), []);
+
   useEffect(() => {
     let ws: WebSocket | null = null;
     let retry = 1000;
     let timer = 0;
     let closed = false;
+    let everOpen = false;
     const open = () => {
       ws = new WebSocket(`${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws/v1/observations`);
-      ws.onopen = () => { retry = 1000; setState((s) => ({ ...s, connected: true })); };
+      ws.onopen = () => {
+        retry = 1000;
+        setState((s) => ({ ...s, connected: true, epoch: everOpen ? s.epoch + 1 : s.epoch }));
+        everOpen = true;
+      };
       ws.onmessage = (e) => {
-        const msg = JSON.parse(e.data);
-        if (msg.type === "live") setState((s) => ({ ...s, live: msg, liveAt: Date.now() }));
-        else if (msg.type === "wash_saved") setState((s) => ({ ...s, saved: msg.wash, savedCount: s.savedCount + 1 }));
+        const msg = JSON.parse(e.data as string) as { type: string; wash?: WashView };
+        if (msg.type === "live") setState((s) => ({ ...s, liveAt: Date.now() }));
+        else if (msg.type === "wash_saved" && msg.wash) setState((s) => ({ ...s, saved: msg.wash!, epoch: s.epoch + 1 }));
       };
       ws.onclose = () => {
         setState((s) => ({ ...s, connected: false }));
@@ -40,10 +46,18 @@ export function LiveProvider({ children }: { children: ReactNode }) {
     open();
     return () => { closed = true; clearTimeout(timer); ws?.close(); };
   }, []);
-  return <Ctx.Provider value={state}>{children}</Ctx.Provider>;
+
+  useEffect(() => {
+    if (state.connected) return;
+    const t = window.setInterval(refresh, POLL_MS);
+    return () => clearInterval(t);
+  }, [state.connected, refresh]);
+
+  const value = useMemo(() => ({ ...state, refresh }), [state, refresh]);
+  return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 
-/** True while the wash software is sending live messages (it stops 2 s after the last one). */
+/** True while the wash software is sending live updates (none for 2.5 s means it stopped). */
 export function useStationActive(): boolean {
   const { liveAt } = useLive();
   const [now, setNow] = useState(Date.now());

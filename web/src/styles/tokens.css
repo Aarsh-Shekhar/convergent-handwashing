@@ -1,0 +1,63 @@
+/* Scrubble design tokens. One place for colour, type, shape, depth and motion.
+   The world is an ocean at dusk: blue water up top, deep indigo below. */
+:root {
+  /* world */
+  --ocean-top: #2b4d85;
+  --ocean: #213d68;
+  --dusk: #2a2158;
+  --midnight: #1f1440;
+
+  /* surfaces */
+  --panel: #2a3a66;
+  --panel-deep: #232c58;
+  --panel-violet: #4a3384;
+  --rim: rgba(142, 178, 235, 0.34);       /* the lit top edge of a raised surface */
+  --rim-soft: rgba(142, 178, 235, 0.16);
+  --well: rgba(12, 14, 46, 0.42);          /* pressed-in areas: tracks, inputs */
+
+  /* accents */
+  --aqua: #2bb1d6;
+  --aqua-deep: #1b83b0;
+  --violet: #8459c9;
+  --violet-deep: #5a3a9c;
+  --gold: #f6c64f;
+  --gold-deep: #d99a22;
+  --coral: #f58fa0;       /* missed spots: always paired with an icon or a word */
+  --coral-deep: #c9566e;
+  --mint: #5fdcaa;        /* washed, done */
+  --mint-deep: #2f9f7c;
+
+  /* text */
+  --ink: #f6f8ff;
+  --ink-soft: #b9c6ee;
+  --ink-faint: #8f9bd0;
+  --ink-on-gold: #4a2f05;
+
+  /* type */
+  --font: "Nunito Variable", "Nunito", ui-rounded, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --t-title: clamp(26px, 7.2vw, 30px);
+  --t-section: 19px;
+  --t-body: 15px;
+  --t-small: 13px;
+  --t-micro: 12px;
+  --t-data: 30px;
+
+  /* shape (4/8 rhythm) */
+  --r-panel: 24px;
+  --r-card: 20px;
+  --r-pill: 999px;
+  --gutter: 18px;
+
+  /* depth */
+  --lift: 0 10px 24px rgba(10, 8, 40, 0.38);
+  --lift-small: 0 5px 12px rgba(10, 8, 40, 0.34);
+  --inner-light: inset 0 1.5px 0 var(--rim), inset 0 -10px 18px rgba(14, 10, 50, 0.28);
+
+  /* motion */
+  --ease: cubic-bezier(0.22, 0.9, 0.3, 1);
+  --pop: cubic-bezier(0.2, 1.3, 0.4, 1);
+  --fast: 140ms;
+  --slow: 520ms;
+
+  color-scheme: dark;
+}

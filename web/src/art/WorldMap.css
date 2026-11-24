@@ -1,0 +1,12 @@
+.worldmap { display: block; width: 100%; height: auto; }
+/* a place not opened yet sleeps under blue dusk */
+.worldmap .asleep { filter: saturate(0.5) brightness(0.74); }
+.worldmap .stone .top { fill: #8f9bd0; } .worldmap .stone .side { fill: #5a659e; }
+.worldmap .stone.lit .top { fill: #ffe08a; } .worldmap .stone.lit .side { fill: #c9901f; }
+.worldmap .stone.lit { filter: drop-shadow(0 0 5px rgba(246, 198, 79, 0.8)); }
+.worldmap .medal .top { fill: #b9c2ea; } .worldmap .medal .side { fill: #5d679f; } .worldmap .medal .face { fill: #8792c4; }
+.worldmap .medal.open .top { fill: #ffe9a8; } .worldmap .medal.open .side { fill: #c9901f; } .worldmap .medal.open .face { fill: #f6c64f; }
+.worldmap .medal text { font: 900 12px var(--font); fill: #4a2f05; }
+.worldmap .medal .lock { fill: #2a2f66; } .worldmap .medal .shackle { fill: none; stroke: #2a2f66; stroke-width: 2; }
+.worldmap .halo { fill: rgba(255, 233, 168, 0.35); animation: halo 2.2s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+@keyframes halo { 50% { transform: scale(1.25); opacity: 0.4; } }

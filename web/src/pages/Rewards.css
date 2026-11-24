@@ -1,0 +1,36 @@
+.vault .content { display: grid; grid-template-columns: 1fr 44%; align-items: center; gap: 4px; padding: 20px 4px 20px 20px; }
+.vault .balance { font: 900 46px/1 var(--font); letter-spacing: -0.02em; margin: 8px 0 6px; text-shadow: 0 4px 0 rgba(30, 16, 80, 0.5); }
+.vault .next { font: 600 var(--t-small)/1.35 var(--font); color: #e6dcff; margin-bottom: 9px; }
+.vault .next b { color: #fff; }
+.vault .chest { margin: -10px -4px -14px 0; }
+
+.reward-list, .badges, .requests { list-style: none; padding: 0; margin: 0; }
+.reward-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 4px 13px; padding: 14px 10px 14px 14px; }
+@media (max-width: 380px) { .reward-row { grid-template-columns: auto minmax(0, 1fr); } .reward-row .side { grid-column: 2; justify-content: space-between; } }
+.reward-row + .reward-row { margin-top: 10px; }
+.reward-row.ready { background: linear-gradient(165deg, #4a5a9a, #33427c 45%, #2a3168); box-shadow: inset 0 1.5px 0 rgba(255, 233, 168, 0.55), inset 0 0 0 1.5px rgba(246, 198, 79, 0.35), var(--lift); }
+.reward-row.off { opacity: 0.62; }
+.reward-row .medallion { width: 56px; height: 56px; flex: none; display: grid; place-items: center; border-radius: 20px; color: #fff; background: radial-gradient(120% 120% at 30% 15%, #a98af0, #7450c0 55%, #553a9c); box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.4), inset 0 -8px 12px rgba(30, 14, 80, 0.4), var(--lift-small); }
+.reward-row.ready .medallion { color: var(--ink-on-gold); background: radial-gradient(120% 120% at 30% 15%, #fff0b0, var(--gold) 55%, var(--gold-deep)); }
+.reward-row .body { flex: 1; min-width: 0; display: grid; gap: 5px; }
+.reward-row b { font: 800 16px/1.2 var(--font); overflow-wrap: anywhere; }
+.reward-row .cost { display: flex; align-items: center; gap: 5px; font: 800 14px/1 var(--font); color: #ffe9ae; }
+.reward-row .side { display: flex; align-items: center; gap: 2px; flex: none; }
+.reward-row .togo { font: 800 var(--t-micro)/1.2 var(--font); color: var(--ink-soft); }
+.reward-row .edit { width: 44px; height: 44px; display: grid; place-items: center; border: 0; border-radius: 50%; background: none; color: var(--ink-faint); }
+.icon-chip { width: 52px; padding: 0; display: grid; place-items: center; }
+
+.requests { padding: 4px 16px; }
+.request { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 12px 0; }
+.request + .request { box-shadow: inset 0 1px 0 var(--rim-soft); }
+.request .grow { flex: 1; min-width: 130px; display: grid; gap: 2px; }
+.request b { font: 800 15px/1.2 var(--font); }
+.request .decide { display: flex; gap: 8px; }
+
+.badges { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.badges li { display: grid; justify-items: center; gap: 3px; text-align: center; }
+.badges .medal { width: min(64px, 16vw); filter: drop-shadow(0 6px 8px rgba(8, 6, 40, 0.45)); }
+.badges b { font: 800 var(--t-micro)/1.2 var(--font); margin-top: 4px; }
+.badges small { font: 700 11px/1 var(--font); color: var(--ink-faint); }
+.badges .earned small { color: var(--gold); }
+.rewards .rule { margin: 22px 4px 0; line-height: 1.45; }
