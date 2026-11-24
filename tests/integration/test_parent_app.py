@@ -72,7 +72,8 @@ def test_daily_goal_from_settings_caps_zaps(client):
     assert client.put("/api/v1/app/settings", json={"daily_goal": 1}).status_code == 200
     noon = datetime(2026, 11, 3, 18, tzinfo=UTC)  # a fixed day, so the test never straddles midnight
     client.post("/api/v1/washes", json=record("w1", noon, ALL7), headers=H)
-    assert client.post("/api/v1/washes", json=record("w2", noon + timedelta(minutes=5), ALL7), headers=H).json()["zaps"] == 0
+    second = client.post("/api/v1/washes", json=record("w2", noon + timedelta(minutes=5), ALL7), headers=H).json()
+    assert second["zaps"] == 0 and second["capped"] is True  # the app can say "daily zaps done" instead of showing nothing
 
 
 def test_buying_a_germ(client):

@@ -91,20 +91,25 @@ def _on(washes: list[Wash], tz: str, first: date, last: date) -> list[Wash]:
     return [w for w in washes if first <= local_day(w.ended, tz) <= last]
 
 
-def zaps_for(w: Wash, earlier: list[Wash], tz: str, goal: int) -> int:
-    """Zaps a new wash earns: 1 per step done, plus a bonus if finished. Nothing once today's goal is already met."""
-    day = local_day(w.ended, tz)
-    if sum(counts(e) for e in _on(earlier, tz, day, day)) >= goal:
-        return 0
+def worth(w: Wash) -> int:
+    """Zaps a wash is worth before the daily limit: 1 per step done, plus a bonus if finished."""
     return w.steps_done + (FINISH_BONUS if w.finished else 0)
+
+
+def zaps_for(w: Wash, earlier: list[Wash], tz: str, goal: int) -> int:
+    """Zaps a new wash earns: its worth, or nothing once ``goal`` washes today already earned zaps."""
+    day = local_day(w.ended, tz)
+    if sum(e.zaps > 0 for e in _on(earlier, tz, day, day)) >= goal:
+        return 0
+    return worth(w)
 
 
 def points_for(w: Wash, earlier: list[Wash], tz: str, goal: int) -> int:
     """Family-reward points a new wash earns: its score (0 to 100), under the same daily cap as zaps.
 
-    A wash with nothing recognized earns nothing, and so does any wash after today's goal is met."""
+    A wash with no step done earns nothing, and so does any wash once ``goal`` washes today already earned."""
     day = local_day(w.ended, tz)
-    if not counts(w) or sum(counts(e) for e in _on(earlier, tz, day, day)) >= goal:
+    if worth(w) == 0 or sum(e.zaps > 0 for e in _on(earlier, tz, day, day)) >= goal:
         return 0
     return max(0, min(int(w.points), 100))
 
@@ -174,7 +179,8 @@ def label(local: datetime, routines: list[dict[str, Any]], window_min: int = 60)
 
 def wash_view(w: Wash) -> dict[str, Any]:
     return {"wash_id": w.wash_id, "ended": w.ended.isoformat(), "stars": w.stars, "points": w.points, "finished": w.finished,
-            "steps_done": w.steps_done, "zaps": w.zaps, "reward_points": w.reward_points, "seconds_total": round(sum(w.seconds.values()), 1),
+            "steps_done": w.steps_done, "zaps": w.zaps, "reward_points": w.reward_points, "capped": w.zaps == 0 and worth(w) > 0,
+            "seconds_total": round(sum(w.seconds.values()), 1),
             "coverage": coverage(w.seconds), "missed": missed(w.seconds)}
 
 
@@ -187,7 +193,8 @@ def home(washes: list[Wash], now: datetime, tz: str, goal: int) -> dict[str, Any
     if len([w for w in week if counts(w)]) >= TIP_MIN_WASHES and spots:
         tip = {"zone": spots[0]["zone"], "name": spots[0]["name"], "missed": spots[0]["missed"]}
     latest = max(washes, key=lambda w: w.ended, default=None)
-    return {"today": sum(counts(w) for w in _on(washes, tz, today, today)), "goal": goal, "avg_score": _avg(week),
+    todays = _on(washes, tz, today, today)
+    return {"today": sum(counts(w) for w in todays), "zap_washes_today": sum(w.zaps > 0 for w in todays), "goal": goal, "avg_score": _avg(week),
             "clean_washes": sum(w.finished for w in washes), "latest": None if latest is None else wash_view(latest), "tip": tip}
 
 
@@ -230,7 +237,7 @@ def boss_status(washes: list[Wash], now: datetime, tz: str) -> dict[str, Any]:
 
 
 def _owned(unlocks: list[dict[str, Any]]) -> set[str]:
-    return {STARTER} | {u["germ"] for u in unlocks}
+    return {STARTER} | {u["germ"] for u in unlocks if u["germ"] in GERMS}  # "_gift" rows are test zaps, not germs
 
 
 def rewards(washes: list[Wash], unlocks: list[dict[str, Any]], now: datetime, tz: str) -> dict[str, Any]:
