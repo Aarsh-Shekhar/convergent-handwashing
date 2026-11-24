@@ -70,7 +70,7 @@ table.data { width: 100%; border-collapse: collapse; font-variant-numeric: tabul
 .hands { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; justify-items: center; margin: 0; }
 .hands > div { width: min(150px, 100%); }
 .hands .hand { width: 100%; height: auto; }
-.hands .hand.back { transform: scaleX(-1); }
+.hands .hand-back { transform: scaleX(-1); }
 .hands figcaption { text-align: center; font-size: 12.5px; color: var(--ink-3); margin-top: 2px; }
 .legend { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 14px; margin-top: 10px; font-size: 13px; color: var(--ink-2); }
 .legend i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; border: 1px solid rgba(39, 48, 79, 0.35); }

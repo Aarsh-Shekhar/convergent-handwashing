@@ -63,13 +63,13 @@ export default function Insights() {
                 <thead><tr><th>When</th><th className="r">Washes</th><th className="r">Share</th><th className="r">Avg score</th></tr></thead>
                 <tbody>
                   {ins.by_time.map((b) => (
-                    <tr key={b.block}><td>{b.block}<span className="sub">{hours(b.from_hour, b.to_hour)}</span></td><td className="r">{b.washes}</td><td className="r">{pct(b.washes, ins.n)}</td><td className="r">{b.avg_score ?? "–"}</td></tr>
+                    <tr key={b.block}><td>{b.block}<span className="sub">{hours(b.from_hour, b.to_hour)}</span></td><td className="r">{b.washes}</td><td className="r">{pct(b.washes, ins.n)}</td><td className="r">{b.avg_score === null ? "–" : Math.round(b.avg_score)}</td></tr>
                   ))}
                 </tbody>
               </table>
               <p className="note">
                 {busiest && busiest.washes > 0 && <>Most washes happen in the {busiest.block.toLowerCase()}. </>}
-                {lowTime && busiest && lowTime.block !== busiest.block && <>The lowest average score is in the {lowTime.block.toLowerCase()} ({lowTime.avg_score}). </>}
+                {lowTime && busiest && lowTime.block !== busiest.block && <>The lowest average score is in the {lowTime.block.toLowerCase()} ({Math.round(lowTime.avg_score!)}). </>}
                 Averages are shown for any number of washes; treat rows with fewer than {MIN_N} as a first look.
               </p>
             </section>

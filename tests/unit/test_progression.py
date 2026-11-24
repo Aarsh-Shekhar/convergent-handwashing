@@ -257,3 +257,31 @@ def test_insights_with_no_washes_have_no_averages_instead_of_zeros():
     r = P.insights([], at(10), TZ, goal=6, days=7)
     assert r["n"] == 0 and r["score"]["mean"] is None and r["scrub"]["mean_s"] is None
     assert all(z["coverage"] is None for z in r["zones"]) and all(d["avg_score"] is None for d in r["per_day"])
+
+
+def test_each_rewarded_wash_is_one_level_in_time_order_with_a_chest_every_fifth():
+    ws = [wash(at(1) + timedelta(hours=i), ALL7 if i == 2 else {"palm_to_palm": 4.0}, stars=2 + i % 3, zaps=5, wid=f"r{i}") for i in range(12)]
+    a = P.adventure([*reversed(ws), wash(at(2), zaps=0, wid="extra")])
+    assert [lv["wash_id"] for lv in a["levels"]] == [f"r{i}" for i in range(12)] and a["levels"][0]["n"] == 1
+    assert a["levels"][2]["perfect"] and not a["levels"][0]["perfect"]
+    assert a["chests_opened"] == 2 and a["chest_every"] == 5
+    bay, jungle, _, castle = a["stages"]
+    assert (bay["first_level"], bay["last_level"], bay["levels_done"]) == (1, 10, 10)
+    assert (jungle["first_level"], jungle["last_level"], jungle["levels_done"]) == (11, 25, 2)
+    assert castle["levels_done"] == 0 and castle["last_level"] == 75 and bay["germs"] == ["gunky", "smudge"]
+    # past the last block the castle grows, so there is always a next level
+    many = P.adventure([wash(at(1) + timedelta(minutes=i), zaps=1) for i in range(76)])
+    assert many["stages"][3]["last_level"] == 80
+
+
+def test_daily_quests_come_from_todays_washes_and_earn_nothing():
+    zone = P.GERMS[P.boss_of_week(date(2026, 11, 4))]["zone"]
+    step = P.ZONES[zone][0]
+    none = P.quests([], at(4), TZ)
+    assert [q["done"] for q in none["today"]] == [False, False, False] and not none["all_done"] and none["full_days_this_week"] == 0
+    weak = P.quests([wash(at(4), {"palm_to_palm": 1.0} if zone != "palms" else {"wrist_rubbing": 1.0}, stars=1)], at(4, 19), TZ)
+    assert [q["done"] for q in weak["today"]] == [True, False, False] and weak["today"][1]["have"] == 1
+    good = P.quests([wash(at(3), {step: 3.0}, stars=4), wash(at(4), {step: 3.0}, stars=3)], at(4, 19), TZ)
+    assert good["all_done"] and good["done_today"] == 3 and good["full_days_this_week"] == 2 and good["today"][2]["zone"] == zone
+    # a wash with nothing recognized finishes no quest
+    assert P.quests([wash(at(4), stars=0, points=0)], at(4, 19), TZ)["done_today"] == 0

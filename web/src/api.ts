@@ -46,9 +46,18 @@ export type MonthProgress = {
   period: "month"; year: number; month: number; first_weekday: number; washes: number; goal: number;
   days: { day: number; washes: number; fill: number }[];
 };
-export type Stage = { id: "bubble_bay" | "germ_jungle" | "soap_canyon" | "bacteria_castle"; name: string; unlock_at: number; unlocked: boolean; stones_lit: number };
+export type Stage = {
+  id: "bubble_bay" | "germ_jungle" | "soap_canyon" | "bacteria_castle"; name: string; unlock_at: number; unlocked: boolean; stones_lit: number;
+  first_level: number; last_level: number; levels_done: number; germs: string[];
+};
+/** One rewarded wash = one level on the map path. */
+export type Level = { n: number; wash_id: string; stars: number; points: number; perfect: boolean };
+export type Quest = { id: "wash" | "stars" | "zone"; have: number; need: number; done: boolean; zone?: Zone; zone_name?: string };
+export type Quests = { today: Quest[]; done_today: number; all_done: boolean; full_days_this_week: number };
+export type Care = { name: string; email: string; phone: string; booking_url: string };
 export type Adventure = {
-  rewarded_washes: number; stones: number; stages: Stage[]; next: { id: string; name: string; washes_left: number } | null;
+  rewarded_washes: number; stones: number; stages: Stage[]; next: { id: Stage["id"]; name: string; washes_left: number } | null;
+  levels: Level[]; chest_every: number; chests_opened: number; quests: Quests;
   streak: { current: number; best: number }; boss: Boss;
 };
 export type GermInfo = { id: string; name: string; rarity: "common" | "rare" | "legendary" | "boss"; price: number | null; zone: Zone; owned: boolean };

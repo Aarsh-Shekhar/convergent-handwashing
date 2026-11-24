@@ -12,12 +12,15 @@ Shared rules: `styles/app.css`. Per view: `styles/kid.css`, `styles/parent.css`.
 
 ## Look
 
-Changed on 2026-11-24 after review: the first version read as glossy and over-rounded.
+Third pass, 2026-11-24. The first version was glossy and over-rounded. The second was flat cream paper, which
+read as plain. This one sits between them.
 
-- Flat fills. No gradients on controls, no glow, no glass. One shadow, used on sheets and the toast only.
-- Kid view: Nunito, warm paper background, flat pastel tiles, 12 px corners, buttons with a 3 px darker bottom edge.
-- Grown-up view: Inter, white, hairline borders, tables, 6 px corners, one blue accent. Numbers use tabular figures.
-- Germ art and the Phizzy material (names, zones, the story) are unchanged. The scene behind Bubbles is flat shapes.
+- Kid view: the night-ocean world of the first version (blue at the top, indigo below) with the flat panels of
+  the second. Gold marks what can be pressed. Nunito, 16 px corners, buttons with a 3 px darker edge. No gloss,
+  no glow, no glass.
+- Grown-up view: no characters and no game colour. Inter, white, cool grey hairlines, 8 px corners, one blue.
+  Plain wordmark. The hand heatmap is flat cells split by white gaps. Numbers use tabular figures.
+- Germ art and the Phizzy material (names, zones, the story) are unchanged.
 - Status is never colour alone: every state has a word or an icon next to it.
 
 ## Screens
@@ -27,7 +30,9 @@ Changed on 2026-11-24 after review: the first version read as glossy and over-ro
 | `/kid` | Kid | Today's washes against the goal, Bubbles, zaps, points, streak, latest wash, boss |
 | `/kid/live` | Kid | Waiting, scrubbing (step tiles fill from the live feed), result |
 | `/kid/wash/:id` | Kid | Stars, hands with washed and missed zones, what it earned |
-| `/kid/map` | Kid | Adventure map, places open at 0, 10, 25, 50 rewarded washes |
+| `/kid` (also) | Kid | "Your next wash is Level N in Place", three daily quests |
+| `/kid/map` | Kid | Adventure map. Tap a place on the drawing or in the list to go in. Places open at 0, 10, 25, 50 rewarded washes |
+| `/kid/map/:place` | Kid | The place's path: one level per rewarded wash, with its stars. Tap a finished level to see that wash. A chest marks every fifth level. Who lives there, moves to practise. Locked places can be looked at |
 | `/kid/germs` | Kid | Collection, buy with zaps, boss |
 | `/kid/rewards` | Kid | Points, family rewards, ask for one, badges |
 | `/` | Grown-up | Range picker, 4 figures, score per wash, washes per day, hand heatmap, recent washes |
@@ -35,6 +40,7 @@ Changed on 2026-11-24 after review: the first version read as glossy and over-ro
 | `/insights` | Grown-up | Heatmap with counts, seconds per step against the 3 s target, time of day, goal days |
 | `/rewards` | Grown-up | Requests to approve, reward list, points ledger rule |
 | `/station` | Grown-up | How a wash gets from the sink to the app (see below) |
+| `/extensions` | Grown-up | Summary to email, copy or print. Saved doctor contact with call and booking link. Calendar file and CSV. A table of planned items marked not built |
 | `/settings` | Grown-up | Family, routines, PIN, privacy, delete, what is not built |
 | `/onboarding` | none | Tour and set-up, ends in the kid view |
 
@@ -56,6 +62,8 @@ Written so a judge can follow it without help. Top to bottom:
 - Seeded and simulated washes carry a "Demo" tag everywhere they appear. Real ones say "Sink".
 - The station status reflects messages that arrived, nothing else.
 - Every chart has its numbers in a table or a sentence next to it. Heatmap cells show "washed in 9 of 12".
+- Levels, chests and quests are worked out from saved washes. They give no extra zaps or points.
+- Extensions: the app sends nothing by itself. Items that need a partner are in a separate table, each tagged "Not built".
 - The heatmap uses one blue from light to dark. Charts with one series have no legend.
 
 ## Visual review

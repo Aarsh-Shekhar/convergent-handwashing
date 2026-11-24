@@ -1,6 +1,6 @@
 // The adventure map: an original isometric island drawn in SVG for Scrubble.
 // Four places sit on rising terraces, joined by stepping stones. What is open, how many stones are lit and
-// where Bubbles stands all come from the backend (rewarded washes); nothing here is tappable progress.
+// where Bubbles stands all come from the backend (rewarded washes). Tapping a place opens it.
 import { useId } from "react";
 import type { Adventure, Stage } from "../api";
 import gunky from "../assets/gunky.png";
@@ -89,10 +89,13 @@ function Stone({ at, lit }: { at: P3; lit: boolean }) {
   );
 }
 
-function Medal({ at, n, stage, current }: { at: P3; n: number; stage: Stage; current: boolean }) {
+function Medal({ at, n, stage, current, onOpen }: { at: P3; n: number; stage: Stage; current: boolean; onOpen: () => void }) {
   const [x, y] = pt(at);
+  const label = stage.unlocked ? `${stage.name}: open, ${stage.levels_done} of ${stage.last_level - stage.unlock_at} levels done. Go in.` : `${stage.name}: opens at ${stage.unlock_at} washes. Look inside.`;
   return (
-    <g className={`medal ${stage.unlocked ? "open" : "shut"} ${current ? "current" : ""}`}>
+    <g className={`place medal ${stage.unlocked ? "open" : "shut"} ${current ? "current" : ""}`} role="link" tabIndex={0} aria-label={label}
+      onClick={(e) => { e.stopPropagation(); onOpen(); }} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onOpen(); } }}>
+      <ellipse cx={x} cy={y} rx="34" ry="24" className="hit" />
       {current && <ellipse cx={x} cy={y} rx="30" ry="15" className="halo" />}
       <ellipse cx={x} cy={y + 6} rx="19" ry="9.5" className="side" /><ellipse cx={x} cy={y} rx="19" ry="9.5" className="top" />
       <ellipse cx={x} cy={y - 0.5} rx="13.5" ry="6.4" className="face" />
@@ -103,7 +106,7 @@ function Medal({ at, n, stage, current }: { at: P3; n: number; stage: Stage; cur
   );
 }
 
-export function WorldMap({ data }: { data: Adventure }) {
+export function WorldMap({ data, onOpen }: { data: Adventure; onOpen: (id: Stage["id"]) => void }) {
   const id = useId();
   const stage = (k: Stage["id"]) => data.stages.find((s) => s.id === k)!;
   const here = [...data.stages].reverse().find((s) => s.unlocked)?.id ?? "bubble_bay";
@@ -111,23 +114,23 @@ export function WorldMap({ data }: { data: Adventure }) {
   const summary = `Adventure map. Open: ${data.stages.filter((s) => s.unlocked).map((s) => s.name).join(", ")}. `
     + (data.next ? `${data.next.name} opens in ${data.next.washes_left} more rewarded ${data.next.washes_left === 1 ? "wash" : "washes"}.` : "Every place is open.");
   return (
-    <svg className="worldmap" viewBox="12 0 366 398" role="img" aria-label={summary}>
+    <svg className="worldmap" viewBox="12 0 366 398" role="group" aria-label={summary}>
       <defs>
         <linearGradient id={`${id}w`} x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#58dcd8" /><stop offset="1" stopColor="#2a9fc4" /></linearGradient>
         <linearGradient id={`${id}g`} x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#8fe08a" /><stop offset="1" stopColor="#3fae78" /></linearGradient>
         <linearGradient id={`${id}c`} x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#f0a98c" /><stop offset="1" stopColor="#d07a78" /></linearGradient>
         <linearGradient id={`${id}k`} x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#a892ea" /><stop offset="1" stopColor="#7460c4" /></linearGradient>
         <linearGradient id={`${id}f`} x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#c9fbff" /><stop offset="1" stopColor="#58dcd8" /></linearGradient>
-        <radialGradient id={`${id}sea`} cx="0.5" cy="0.62" r="0.6"><stop offset="0" stopColor="#ffffff" stopOpacity="0.7" /><stop offset="1" stopColor="#ffffff" stopOpacity="0" /></radialGradient>
+        <radialGradient id={`${id}sea`} cx="0.5" cy="0.62" r="0.6"><stop offset="0" stopColor="#6f8fe8" stopOpacity="0.55" /><stop offset="1" stopColor="#6f8fe8" stopOpacity="0" /></radialGradient>
       </defs>
       <rect width="390" height="400" fill={`url(#${id}sea)`} />
       {/* far kelp towers */}
-      <g fill="#a9cdef" opacity="0.7">
+      <g fill="#3c4f9e" opacity="0.8">
         <rect x="20" y="150" width="26" height="170" rx="13" /><rect x="52" y="110" width="34" height="200" rx="17" /><rect x="304" y="120" width="34" height="190" rx="17" /><rect x="344" y="166" width="26" height="150" rx="13" />
       </g>
 
       {/* ---- Bacteria Castle: the back terrace */}
-      <g className={shut("bacteria_castle")}>
+      <g className={`place ${shut("bacteria_castle")}`} onClick={() => onOpen("bacteria_castle")}>
         <Block x={0} y={0} w={5} d={5} top={3.4} fill={`url(#${id}k)`} left="#5a49a6" right="#463889" rim="#cbbcff" />
         <Tower x={0.3} y={0.3} z={3.4} h={2.6} />
         <Block x={1.5} y={0.5} w={2.2} d={0.8} top={4.6} base={3.4} fill="#cfc4ee" left="#8f82c9" right="#6f62ad" />
@@ -138,7 +141,7 @@ export function WorldMap({ data }: { data: Adventure }) {
       </g>
 
       {/* ---- Soap Canyon: terracotta cliffs with a soapy waterfall */}
-      <g className={shut("soap_canyon")}>
+      <g className={`place ${shut("soap_canyon")}`} onClick={() => onOpen("soap_canyon")}>
         <Block x={5} y={0} w={5} d={5} top={2.3} fill={`url(#${id}c)`} left="#b8626c" right="#964d62" rim="#ffd2bd" />
         <Block x={8.2} y={0.4} w={1.5} d={1.7} top={3.3} base={2.3} fill="#f6bfa2" left="#c7727a" right="#a55a6c" />
         <Block x={6} y={0.5} w={1.4} d={1.1} top={2.9} base={2.3} fill="#ffc8d6" left="#e58aa6" right="#c76f93" rim="#fff" />
@@ -150,7 +153,7 @@ export function WorldMap({ data }: { data: Adventure }) {
       </g>
 
       {/* ---- Germ Jungle: a grassy shelf */}
-      <g className={shut("germ_jungle")}>
+      <g className={`place ${shut("germ_jungle")}`} onClick={() => onOpen("germ_jungle")}>
         <Block x={0} y={5} w={5} d={5} top={1.2} fill={`url(#${id}g)`} left="#8a5a4e" right="#6e4544" rim="#d6ffc4" />
         <polygon points={poly([[0, 10, 1.2], [5, 10, 1.2], [5, 10, 0.92], [0, 10, 0.92]])} fill="#2f9468" />
         <polygon points={poly([[5, 5, 1.2], [5, 10, 1.2], [5, 10, 0.92], [5, 5, 0.92]])} fill="#237a5c" />
@@ -160,7 +163,7 @@ export function WorldMap({ data }: { data: Adventure }) {
       </g>
 
       {/* ---- Bubble Bay: open water at the front */}
-      <g>
+      <g className="place" onClick={() => onOpen("bubble_bay")}>
         <Block x={5} y={5} w={5} d={5} top={0} fill={`url(#${id}w)`} left="#1f86a8" right="#196d92" rim="#c4fbff" />
         <polygon points={poly([[5, 10, -0.5], [10, 10, -0.5], [10, 10, -0.9], [5, 10, -0.9]])} fill="#d9b98a" /><polygon points={poly([[10, 5, -0.5], [10, 10, -0.5], [10, 10, -0.9], [10, 5, -0.9]])} fill="#b9966e" />
         <polygon points={poly([[5.6, 5, 0], [7, 5, 0], [7.6, 6.2, 0], [5.6, 6.4, 0]])} fill="#eaffff" opacity="0.55" />
@@ -172,8 +175,8 @@ export function WorldMap({ data }: { data: Adventure }) {
       {ORDER.slice(0, -1).map((k, i) => Array.from({ length: data.stones }, (_, s) => (
         <Stone key={`${k}${s}`} at={lerp(SPOTS[k], SPOTS[ORDER[i + 1]], (s + 1) / (data.stones + 1))} lit={s < stage(k).stones_lit} />
       )))}
-      {ORDER.map((k, i) => <Medal key={k} at={SPOTS[k]} n={i + 1} stage={stage(k)} current={k === here} />)}
-      <Critter at={[SPOTS[here][0] - 0.2, SPOTS[here][1] - 0.9, SPOTS[here][2]]} art={bubbles} size={58} />
+      {ORDER.map((k, i) => <Medal key={k} at={SPOTS[k]} n={i + 1} stage={stage(k)} current={k === here} onOpen={() => onOpen(k)} />)}
+      <g style={{ pointerEvents: "none" }}><Critter at={[SPOTS[here][0] - 0.2, SPOTS[here][1] - 0.9, SPOTS[here][2]]} art={bubbles} size={58} /></g>
     </svg>
   );
 }

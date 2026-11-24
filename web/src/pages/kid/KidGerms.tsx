@@ -50,10 +50,10 @@ export default function KidGerms() {
       </header>
       {!dex ? <Pending error={error} retry={reload} blocks={3} /> : (
         <>
-          <section className="card boss" style={{ background: "var(--blush-tint)", borderColor: "#f6c9c5" }}>
+          <section className="card boss boss-panel">
             <Creature id={dex.boss.germ} size={104} />
             <div className="grow">
-              <span className="muted" style={{ color: "#8f2a26" }}>Boss of the week</span>
+              <span className="muted">Boss of the week</span>
               <h2 style={{ font: "900 24px/1.1 var(--font)" }}>{GERM_NAMES[dex.boss.germ]}</h2>
               <p style={{ fontSize: 14 }}>Hides {HIDES[dex.boss.zone]}. Give {ZONE_NAMES[dex.boss.zone].toLowerCase()} a full scrub in {dex.boss.target} washes this week to win.</p>
               <span className="line"><Bar value={dex.boss.done / dex.boss.target} tone="coral" label="Boss progress" /></span>

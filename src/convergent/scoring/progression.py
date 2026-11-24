@@ -48,6 +48,12 @@ STREAK_BADGE_DAYS = 5  # the "5-day streak" badge
 MAP_STAGES = [("bubble_bay", "Bubble Bay", 0), ("germ_jungle", "Germ Jungle", 10), ("soap_canyon", "Soap Canyon", 25),
               ("bacteria_castle", "Bacteria Castle", 50)]
 MAP_STONES = 4  # stepping stones drawn between two places
+# Each rewarded wash is one level on the path. Game flavour only: which germ characters live in each place.
+PLACE_GERMS = {"bubble_bay": ["gunky", "smudge"], "germ_jungle": ["sneezel", "prickle"],
+               "soap_canyon": ["king_gunk", "king_sneeze"], "bacteria_castle": ["rainbow_sneezel", "king_prickle"]}
+CHEST_EVERY = 5      # every fifth level has a chest (a milestone marker, it holds no extra points)
+LAST_PLACE_LEVELS = 25
+QUEST_STARS = 3      # "get this many stars in one wash" daily quest
 
 
 @dataclass
@@ -137,17 +143,51 @@ def streak(washes: list[Wash], now: datetime, tz: str) -> dict[str, int]:
 
 
 def adventure(washes: list[Wash]) -> dict[str, Any]:
-    """The adventure map: which places are open and how far along the path to the next one."""
-    done = sum(1 for w in washes if w.zaps > 0 or w.reward_points > 0)
+    """The adventure map: which places are open, and one level per rewarded wash along the path."""
+    rewarded = sorted((w for w in washes if w.zaps > 0 or w.reward_points > 0), key=lambda w: w.ended)
+    done = len(rewarded)
     stages = []
     for i, (key, name, need) in enumerate(MAP_STAGES):
         nxt = MAP_STAGES[i + 1][2] if i + 1 < len(MAP_STAGES) else None
         span = None if nxt is None else nxt - need
         stones = MAP_STONES if span is None or done >= nxt else max(0, min(MAP_STONES, (done - need) * MAP_STONES // span))
-        stages.append({"id": key, "name": name, "unlock_at": need, "unlocked": done >= need, "stones_lit": stones if done >= need else 0})
+        # the last place keeps growing in blocks so there is always a next level
+        last = nxt if nxt is not None else need + max(LAST_PLACE_LEVELS, -(-(done - need + 1) // CHEST_EVERY) * CHEST_EVERY)
+        stages.append({"id": key, "name": name, "unlock_at": need, "unlocked": done >= need, "stones_lit": stones if done >= need else 0,
+                       "first_level": need + 1, "last_level": last, "germs": PLACE_GERMS[key],
+                       "levels_done": max(0, min(done, last) - need)})
     upcoming = next((st for st in stages if not st["unlocked"]), None)
-    return {"rewarded_washes": done, "stones": MAP_STONES, "stages": stages,
+    levels = [{"n": i + 1, "wash_id": w.wash_id, "stars": w.stars, "points": w.points, "perfect": not missed(w.seconds)}
+              for i, w in enumerate(rewarded)]
+    return {"rewarded_washes": done, "stones": MAP_STONES, "stages": stages, "levels": levels,
+            "chest_every": CHEST_EVERY, "chests_opened": done // CHEST_EVERY,
             "next": None if upcoming is None else {"id": upcoming["id"], "name": upcoming["name"], "washes_left": upcoming["unlock_at"] - done}}
+
+
+def _quests_on(day_washes: list[Wash], zone: str) -> list[dict[str, Any]]:
+    ws = [w for w in day_washes if counts(w)]
+    best = max((w.stars for w in ws), default=0)
+    return [
+        {"id": "wash", "have": min(len(ws), 1), "need": 1},
+        {"id": "stars", "have": min(best, QUEST_STARS), "need": QUEST_STARS},
+        {"id": "zone", "zone": zone, "zone_name": ZONE_NAMES[zone], "have": int(any(coverage(w.seconds)[zone] >= 1.0 for w in ws)), "need": 1},
+    ]
+
+
+def quests(washes: list[Wash], now: datetime, tz: str) -> dict[str, Any]:
+    """Three small goals for today, worked out from today's washes. The zone quest follows the boss of the week.
+
+    They earn nothing extra (no zaps, no points): a finished day is counted, and that is all.
+    """
+    today = local_day(now, tz)
+    zone = GERMS[boss_of_week(today)]["zone"]
+    todays = _quests_on(_on(washes, tz, today, today), zone)
+    for q in todays:
+        q["done"] = q["have"] >= q["need"]
+    first = week_start(today)
+    days = [first + timedelta(days=i) for i in range((today - first).days + 1)]
+    full = sum(all(q["have"] >= q["need"] for q in _quests_on(_on(washes, tz, d, d), zone)) for d in days)
+    return {"today": todays, "done_today": sum(q["done"] for q in todays), "all_done": all(q["done"] for q in todays), "full_days_this_week": full}
 
 
 def _avg(ws: list[Wash]) -> int | None:

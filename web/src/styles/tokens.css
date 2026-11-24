@@ -1,6 +1,6 @@
 /* Scrubble has two looks that share one set of names.
-   Kid view: warm paper, flat colour, the sticker characters do the talking.
-   Grown-up view: a quiet white workspace for reading numbers. */
+   Kid view: a night-ocean game world, flat panels, gold for what you can press.
+   Grown-up view: a neutral white workspace for reading numbers. */
 :root {
   /* brand colours, used by both views */
   --blue: #3f7be8;
@@ -36,22 +36,26 @@
 }
 
 [data-view="kid"] {
+  /* the game world: ocean blue at the top, deep indigo below. Flat panels, no gloss. */
   --font: "Nunito Variable", "Nunito", ui-rounded, system-ui, sans-serif;
-  --bg: #fff8ec;
-  --surface: #ffffff;
-  --sunken: #f7eedd;
-  --line: #efe3cd;
-  --ink: #27304f;
-  --ink-2: #555e80;
-  --ink-3: #6e7594;
-  --accent: var(--blue);
-  --accent-edge: var(--blue-edge);
+  --bg: #1d2557;
+  --surface: #283470;
+  --sunken: #1a2150;
+  --line: #3b4a8f;
+  --ink: #f5f7ff;
+  --ink-2: #c5cdf2;
+  --ink-3: #a3aedf;
+  --accent: var(--sun);
+  --accent-edge: var(--sun-edge);
+  --on-accent: #3d2900;
+  --focus: #ffffff;
+  --aqua: #37c2e6;
   --fs: 16px;
   --fs-small: 14px;
-  --r-card: 18px;
-  --r-ctl: 14px;
-  --edge: 3px;                 /* buttons and tiles sit on a flat darker edge, like a cut-out sticker */
-  --card-shadow: 0 1px 0 #e9dcc4;
+  --r-card: 16px;
+  --r-ctl: 12px;
+  --edge: 3px;
+  --card-shadow: 0 2px 0 rgba(12, 14, 48, 0.45);
   --h1: 800 28px/1.15 var(--font);
   --h2: 800 19px/1.25 var(--font);
   --w-strong: 800;
@@ -61,20 +65,22 @@
   --font: "Inter Variable", "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
   --bg: #ffffff;
   --surface: #ffffff;
-  --sunken: #f6f5f2;
-  --line: #e7e5e0;
-  --ink: #22252d;
-  --ink-2: #555a66;
-  --ink-3: #6f7480;
-  --accent: #2f6fd3;
-  --accent-edge: #2f6fd3;
+  --sunken: #f6f7f9;
+  --line: #e3e6eb;
+  --ink: #111827;
+  --ink-2: #4b5563;
+  --ink-3: #6b7280;
+  --accent: #2457c5;
+  --accent-edge: #2457c5;
+  --on-accent: #ffffff;
+  --focus: #2457c5;
   --fs: 14px;
   --fs-small: 13px;
-  --r-card: 10px;
-  --r-ctl: 8px;
+  --r-card: 8px;
+  --r-ctl: 6px;
   --edge: 0px;
   --card-shadow: none;
-  --h1: 650 22px/1.25 var(--font);
-  --h2: 600 15px/1.35 var(--font);
+  --h1: 600 20px/1.3 var(--font);
+  --h2: 600 14px/1.4 var(--font);
   --w-strong: 600;
 }

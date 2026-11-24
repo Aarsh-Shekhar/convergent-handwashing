@@ -279,7 +279,7 @@ def test_upgrading_from_the_parent_app_schema_keeps_washes_and_germs(tmp_path):
         conn.execute(sa.text("INSERT INTO washes (wash_id, child_id, session_id, ended_utc, stars, points, finished, steps_done, zaps, seconds, record, created_utc) "
                              "VALUES ('demo-1', NULL, 's', '2026-11-20 12:00:00', 3, 80, 1, 5, 8, '{}', '{}', '2026-11-20 12:00:00')"))
         conn.execute(sa.text("INSERT INTO germ_unlocks (germ, spent, how, created_utc) VALUES ('sneezel', 50, 'bought', '2026-11-20 12:00:00')"))
-    assert run_migrations(url) == "0003_family"
+    assert run_migrations(url) == "0004_care"
     with make_engine(url).connect() as conn:
         assert conn.execute(sa.text("SELECT child_id, source, reward_points FROM washes")).one() == (1, "demo", 0)
         assert conn.execute(sa.text("SELECT child_id, germ, spent FROM child_germs")).one() == (1, "sneezel", 50)
@@ -321,3 +321,21 @@ def test_insights_and_the_sync_log_cover_only_the_active_child(client):
     assert sync["log"][0]["wash_id"] == "mia-1" and sync["log"][0]["bytes"] < 4000 and sync["log"][0]["lag_s"] >= 0
     assert sync["example"]["wash_id"] == "mia-1" and "seconds" in sync["example"]["record"]   # the newest wash that came from the sink
     assert client.get("/api/v1/app/insights?days=5").status_code == 422
+
+
+def test_the_map_has_a_level_per_wash_and_todays_quests(client):
+    post(client, "lv1", now() - timedelta(minutes=30))
+    a = client.get("/api/v1/app/adventure").json()
+    assert [lv["wash_id"] for lv in a["levels"]] == ["lv1"] and a["stages"][0]["levels_done"] == 1
+    assert a["quests"]["today"][0] == {"id": "wash", "have": 1, "need": 1, "done": True}
+
+
+def test_the_doctor_contact_is_saved_checked_and_behind_the_parent_pin(client):
+    assert client.get("/api/v1/app/care").json() == {"name": "", "email": "", "phone": "", "booking_url": ""}
+    good = {"name": "Dr. Rivera", "email": "office@example.org", "phone": "(512) 555-0100", "booking_url": "https://example.org/book"}
+    assert client.put("/api/v1/app/care", json=good).json() == good and client.get("/api/v1/app/care").json() == good
+    for bad in ({"email": "not-an-email"}, {"booking_url": "javascript:alert(1)"}, {"booking_url": "http://example.org"}, {"phone": "call me"}):
+        assert client.put("/api/v1/app/care", json=bad).status_code == 422
+    token = client.put("/api/v1/app/parent/pin", json={"pin": "4821"}).json()["token"]
+    assert client.get("/api/v1/app/care").status_code in (401, 403)
+    assert client.get("/api/v1/app/care", headers={"X-Parent-Token": token}).json() == good

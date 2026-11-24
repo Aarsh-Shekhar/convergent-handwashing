@@ -10,9 +10,9 @@ test.describe.configure({ mode: "serial" });
 
 const SCREENS: [name: string, path: string, landmark: string][] = [
   ["kid-home", "/kid", "Today's washes"], ["kid-live", "/kid/live", "Waiting for the station"], ["kid-map", "/kid/map", "Bubble Bay"],
-  ["kid-germs", "/kid/germs", "Boss of the week"], ["kid-rewards", "/kid/rewards", "Your points"],
+  ["kid-place", "/kid/map/germ_jungle", "Who lives here"], ["kid-germs", "/kid/germs", "Boss of the week"], ["kid-rewards", "/kid/rewards", "Your points"],
   ["parent-overview", "/", "Average score per day"], ["parent-washes", "/washes", "Every wash recorded for Mia"], ["parent-insights", "/insights", "Hand heatmap"],
-  ["parent-rewards", "/rewards", "How points are earned"], ["parent-station", "/station", "What is never sent"], ["parent-settings", "/settings", "Privacy"],
+  ["parent-rewards", "/rewards", "How points are earned"], ["parent-station", "/station", "What is never sent"], ["parent-extensions", "/extensions", "Share a summary"], ["parent-settings", "/settings", "Privacy"],
 ];
 const kidHomeCount = async (page: Page) => Number((await page.getByRole("img", { name: /of 6 washes today/ }).getAttribute("aria-label"))!.split(" ")[0]);
 
@@ -119,7 +119,7 @@ test("a wash is followed live, lands in both views without a reload, and its num
   await expect(page).toHaveURL(new RegExp(`/kid/wash/${record.wash_id}$`));
   await expect(page.getByRole("img", { name: /Hand map\. Missed: thumbs\./ })).toBeVisible();
   await page.goto("/kid/map");
-  await expect(page.getByRole("img", { name: /Open: Bubble Bay, Germ Jungle, Soap Canyon\./ })).toBeVisible();
+  await expect(page.getByRole("group", { name: /Open: Bubble Bay, Germ Jungle, Soap Canyon\./ })).toBeVisible();
 
   // 4. the grown-up view: same wash, with the arithmetic shown
   await page.goto("/washes");
@@ -350,4 +350,56 @@ test("first run: the tour, set-up, and an empty app that fills with the first wa
   await expect(page.getByText("Every spot got scrubbed.")).toBeVisible();
   expect(noise).toEqual([]);
   seed(); // leave the demo family in place for whoever looks next
+});
+
+
+test("the map: tap a place, walk its levels, open the wash behind a level", async ({ page }) => {
+  await seed();
+  const noise = watchConsole(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/kid");
+  await expect(page.getByRole("heading", { name: "Today's quests" })).toBeVisible();
+  await expect(page.getByText("Wash your hands at the sink")).toBeVisible();
+  await page.getByRole("link", { name: /Your next wash is/ }).click();
+  await expect(page).toHaveURL(/\/kid\/map\/germ_jungle$/);
+  await page.getByRole("link", { name: "Map", exact: true }).first().click();
+  await page.getByRole("link", { name: /^Bubble Bay: open, 10 of 10 levels done/ }).click();          // a place on the drawn map
+  await expect(page.getByRole("heading", { name: "Bubble Bay" })).toBeVisible();
+  await expect(page.getByRole("list", { name: /Bubble Bay: 10 of 10 levels done/ }).getByRole("listitem")).toHaveCount(10);
+  await page.getByRole("listitem", { name: /^Level 5: .*chest opened/ }).click();
+  await expect(page).toHaveURL(/\/kid\/wash\//);
+  await page.goto("/kid/map/bacteria_castle");
+  await expect(page.getByText(/This place opens at 50 washes/)).toBeVisible();
+  await expect(page.getByRole("listitem", { name: /See this wash/ })).toHaveCount(0);
+  await page.screenshot({ path: `${SHOTS}/flow-6-kid-place-locked.png` });
+  expect(noise).toEqual([]);
+});
+
+test("extensions: save the doctor, the summary uses real numbers, files download", async ({ page }) => {
+  await seed();
+  const noise = watchConsole(page);
+  await page.setViewportSize({ width: 1280, height: 860 });
+  await page.goto("/extensions");
+  const summary = page.getByLabel("Summary text");
+  await expect(summary).toContainText("Handwashing summary for Mia");
+  await expect(summary).toContainText(/Washes recorded: \d+/);
+  await expect(summary).toContainText("it is not a medical record");
+  await page.getByLabel(/What you have noticed/).fill("Third cold since September");
+  await expect(summary).toContainText("What we have noticed at home: Third cold since September");
+  await page.getByLabel("Name or practice").fill("Dr. Rivera");
+  await page.getByLabel("Email").fill("office@example.org");
+  await page.getByLabel("Phone").fill("(512) 555-0100");
+  await page.getByLabel("Online booking page").fill("https://example.org/book");
+  await page.getByRole("button", { name: "Save contact" }).click();
+  await expect(page.getByRole("link", { name: "Book a visit" })).toHaveAttribute("href", "https://example.org/book");
+  await expect(page.getByRole("link", { name: "Open in email" })).toHaveAttribute("href", /^mailto:office%40example\.org\?subject=Handwashing/);
+  await page.reload();
+  await expect(page.getByLabel("Name or practice")).toHaveValue("Dr. Rivera");
+  const [csv] = await Promise.all([page.waitForEvent("download"), page.getByRole("row", { name: /spreadsheet/ }).or(page.locator(".row", { hasText: "spreadsheet" })).getByRole("button", { name: "Download" }).click()]);
+  expect(csv.suggestedFilename()).toBe("scrubble-washes-mia.csv");
+  const [ics] = await Promise.all([page.waitForEvent("download"), page.locator(".row", { hasText: "Calendar reminders" }).getByRole("button", { name: "Download" }).click()]);
+  expect(ics.suggestedFilename()).toBe("scrubble-routines.ics");
+  await expect(page.getByText("Not built", { exact: true })).toHaveCount(4);
+  await page.screenshot({ path: `${SHOTS}/flow-7-extensions.png`, fullPage: true });
+  expect(noise).toEqual([]);
 });

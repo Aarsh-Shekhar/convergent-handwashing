@@ -12,9 +12,11 @@ import KidGerms from "./pages/kid/KidGerms";
 import KidHome from "./pages/kid/KidHome";
 import KidLive from "./pages/kid/KidLive";
 import KidMap from "./pages/kid/KidMap";
+import KidPlace from "./pages/kid/KidPlace";
 import KidRewards from "./pages/kid/KidRewards";
 import KidWash from "./pages/kid/KidWash";
 import Onboarding from "./pages/Onboarding";
+import Extensions from "./pages/parent/Extensions";
 import Insights from "./pages/parent/Insights";
 import Overview from "./pages/parent/Overview";
 import Rewards from "./pages/parent/Rewards";
@@ -28,6 +30,8 @@ function Screen({ path }: { path: string }): ReactNode {
   if (wash) return <WashDetail id={decodeURIComponent(wash[1])} />;
   const kidWash = path.match(/^\/kid\/wash\/(.+)$/);
   if (kidWash) return <KidWash id={decodeURIComponent(kidWash[1])} />;
+  const place = path.match(/^\/kid\/map\/([a-z_]+)$/);
+  if (place) return <KidPlace id={place[1]} />;
   switch (path) {
     case "/": return <Overview />;
     case "/washes": return <Washes />;
@@ -35,6 +39,7 @@ function Screen({ path }: { path: string }): ReactNode {
     case "/rewards": return <Rewards />;
     case "/station": return <Station />;
     case "/settings": return <Settings />;
+    case "/extensions": return <Extensions />;
     case "/kid": return <KidHome />;
     case "/kid/live": return <KidLive />;
     case "/kid/map": return <KidMap />;
@@ -61,7 +66,7 @@ function WashToast() {
   const missed = shown.missed.length && shown.stars ? `${shown.missed.length} ${shown.missed.length === 1 ? "spot" : "spots"} to practice` : "every spot scrubbed";
   return (
     <Link to={view === "kid" ? `/kid/wash/${encodeURIComponent(shown.wash_id)}` : `/washes/${encodeURIComponent(shown.wash_id)}`} className="toast" role="status">
-      <Creature id={shown.missed.length && shown.stars ? germFor(shown.missed[0]) : "bubbles"} size={44} />
+      {view === "kid" ? <Creature id={shown.missed.length && shown.stars ? germFor(shown.missed[0]) : "bubbles"} size={44} /> : <span className="glyph"><Icon name="drop" size={18} /></span>}
       <span><b>New wash from the sink</b>Score {shown.points}, {missed}</span>
     </Link>
   );
@@ -93,7 +98,7 @@ function PhonePreview({ path }: { path: string }) {
   }, []);
   return (
     <div className="preview">
-      <div className="preview-bar"><Brand /><p>Phone preview. This is the same app a phone would show.</p><DeviceSwitch /></div>
+      <div className="preview-bar"><Brand plain /><p>Phone preview. This is the same app a phone would show.</p><DeviceSwitch /></div>
       <div className="phone"><iframe title="Scrubble on a phone" src={`${start}?frame=1`} /></div>
     </div>
   );
@@ -117,6 +122,7 @@ function Shell() {
           <Brand />
           <span style={{ display: "inline-flex", alignItems: "center", gap: 2 }}>
             <ViewSwitch />
+            {view === "parent" && <Link to="/extensions" className="icon-btn" aria-label="Extensions" aria-current={path === "/extensions" ? "page" : undefined}><Icon name="grid" size={22} /></Link>}
             {view === "parent" && <Link to="/settings" className="icon-btn" aria-label="Settings" aria-current={path === "/settings" ? "page" : undefined}><Icon name="gear" size={22} /></Link>}
           </span>
         </header>

@@ -1,19 +1,26 @@
-import { send, useApi, ZONE_MOVES, ZONE_NAMES, type Child, type Home, type WeekProgress } from "../../api";
+import { send, useApi, ZONE_MOVES, ZONE_NAMES, type Adventure, type Child, type Home, type Quest, type WeekProgress } from "../../api";
 import { BayScene } from "../../art/scenes";
 import { Creature, germFor } from "../../components/Creature";
+import { Icon } from "../../components/icons";
 import { Bar, Button, EmptyState, Pending, Stars } from "../../components/ui";
 import { GERM_NAMES } from "../../germs";
 import { useLive, useWashStage } from "../../live";
+import { useMode } from "../../mode";
 import { go, Link } from "../../router";
+import { currentPlace, placePath } from "./KidMap";
 
 const DOW = ["M", "T", "W", "T", "F", "S", "S"];
+const questText = (q: Quest) => q.id === "wash" ? "Wash your hands at the sink" : q.id === "stars" ? `Get ${q.need} stars in one wash` : `Scrub your ${(q.zone_name ?? "").toLowerCase()} for 3 seconds`;
 
 export default function KidHome() {
   const { data: h, error, reload } = useApi<Home>("/api/v1/app/home");
   const { data: kids } = useApi<Child[]>("/api/v1/app/children");
   const { data: week } = useApi<WeekProgress>("/api/v1/app/progress?period=week");
+  const { data: adv } = useApi<Adventure>("/api/v1/app/adventure");
+  const place = adv ? currentPlace(adv) : null;
   const { refresh } = useLive();
   const { stage } = useWashStage();
+  const { layout } = useMode();
   const kid = h?.child;
   const todayIdx = (new Date().getDay() + 6) % 7;
   const w = h?.latest;
@@ -22,7 +29,7 @@ export default function KidHome() {
   return (
     <div className="page">
       <section className="scene">
-        <BayScene />
+        <BayScene wide={layout === "desktop"} />
         <h1>Hi {kid?.name ?? "there"}!</h1>
         <p>{h && h.today >= h.goal ? "You hit today's goal. Nice work!" : "Ready to zap some germs?"}</p>
         <Creature id={kid?.buddy ?? "bubbles"} size={132} className="buddy" bob />
@@ -48,6 +55,13 @@ export default function KidHome() {
       {!h ? <div style={{ marginTop: 12 }}><Pending error={error} retry={reload} blocks={2} /></div> : (
         <div className="kid-grid">
           <div className="stack">
+            {adv && place && (
+              <Link to={placePath(place.id)} className="next-up" data-place={place.id}>
+                <Creature id={kid?.buddy ?? "bubbles"} size={46} />
+                <span><small>Your next wash is</small><b>Level {adv.rewarded_washes + 1} in {place.name}</b></span>
+                <Icon name="next" size={24} />
+              </Link>
+            )}
             <section className="card">
               <h2 className="h2">Today's washes</h2>
               <div className="bubbles" role="img" aria-label={`${h.today} of ${h.goal} washes today`}>
@@ -60,6 +74,21 @@ export default function KidHome() {
               <div className="tile sky"><b>{h.zaps}</b><span>zaps</span></div>
               <div className="tile blush"><b>{h.streak}</b><span>{h.streak === 1 ? "day in a row" : "days in a row"}</span></div>
             </div>
+            {adv && (
+              <section className="card">
+                <h2 className="h2">Today's quests</h2>
+                <ul className="quests">
+                  {adv.quests.today.map((q) => (
+                    <li key={q.id} className={q.done ? "quest done" : "quest"}>
+                      <span className="tick"><Icon name="check" size={18} /></span>
+                      <span>{questText(q)}<span className="sr-only">{q.done ? " (done)" : " (not done yet)"}</span></span>
+                      {q.need > 1 && <span className="count">{q.have}/{q.need}</span>}
+                    </li>
+                  ))}
+                </ul>
+                <p className="muted" style={{ marginTop: 10 }}>{adv.quests.all_done ? "All three done today!" : `${adv.quests.done_today} of 3 done today.`} Full quest days this week: {adv.quests.full_days_this_week}.</p>
+              </section>
+            )}
             {week && (
               <section className="card">
                 <h2 className="h2">This week</h2>

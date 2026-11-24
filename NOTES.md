@@ -53,6 +53,7 @@ Parked: motion sensor wake-up. The camera already starts washes (`--auto-wash`).
 - Station page shows how a wash gets from the sink to the app: live feed, what is sent and not sent, the record, a sync log with the delay per wash.
 - Washes upload through a queue file (`backend/outbox.py`) so none is lost when the backend is down.
 - Tested in a Linux container only: pytest 300 passed, vitest 7, Playwright 17 in Chrome. Not tested: camera, Pi, projector, Safari, a real phone.
+- Third pass the same day: kid view back to the dark ocean colours but flat, grown-up view with no characters. Map places are tappable, each rewarded wash is a level, three daily quests (no extra rewards). Extensions page: summary for a doctor, saved doctor contact, calendar file, CSV. Partner ideas are listed as not built. Tests now: pytest 304, vitest 11, Playwright 19.
 - Run it: `bash START_SCRUBBLE_DEMO.command` (demo family, made-up history tagged Demo).
 
 ### 2026-11-17: gameplay loop research, parent version first

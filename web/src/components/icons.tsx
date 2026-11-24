@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 const soft = {} as const; // shapes that used to carry a tint are plain outlines now
 
 const PATHS = {
+  grid: <><rect x="4" y="4" width="6.5" height="6.5" rx="1.5" /><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5" /><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5" /><path d="M16.75 13.5v6.5M13.5 16.75H20" /></>,
   home: <><path {...soft} d="M4.5 11 12 4.5l7.5 6.5v7.2a1.8 1.8 0 0 1-1.8 1.8H6.3a1.8 1.8 0 0 1-1.8-1.8z" /><path d="M9.6 20v-4.4a2.4 2.4 0 0 1 4.8 0V20" /></>,
   chart: <><rect {...soft} x="4" y="11" width="4.2" height="9" rx="1.6" /><rect {...soft} x="9.9" y="5" width="4.2" height="15" rx="1.6" /><rect {...soft} x="15.8" y="8.5" width="4.2" height="11.5" rx="1.6" /></>,
   gift: <><rect {...soft} x="4.5" y="11" width="15" height="9" rx="2" /><rect x="3.5" y="7.5" width="17" height="3.8" rx="1.4" /><path d="M12 7.5V20M12 7.3C10.6 4 7 3.6 7 5.8c0 1.5 2.4 1.7 5 1.5zm0 0c1.4-3.3 5-3.7 5-1.5 0 1.5-2.4 1.7-5 1.5z" /></>,

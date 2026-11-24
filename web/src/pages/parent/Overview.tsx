@@ -41,7 +41,7 @@ export default function Overview() {
 
   return (
     <div className="page">
-      <PageHead title={home?.parent_name ? `Hi ${home.parent_name}` : "Overview"} sub={kid ? `${kid}'s handwashing, last ${range} days` : "Add a child in Settings to begin"}>
+      <PageHead title="Overview" sub={kid ? `${kid}'s handwashing, last ${range} days` : "Add a child in Settings to begin"}>
         <KidPicker />
         <SegmentedTabs label="Period" options={RANGES} value={range} onChange={setRange} />
       </PageHead>
@@ -55,7 +55,7 @@ export default function Overview() {
       )}
 
       {!ins ? <Pending error={error} retry={reload} blocks={3} /> : ins.n === 0 && !washes?.length ? (
-        <EmptyState title="No washes yet" creature="bubbles" action={<Button onClick={() => go("/station")}>See how washes arrive</Button>}>
+        <EmptyState title="No washes yet" action={<Button onClick={() => go("/station")}>See how washes arrive</Button>}>
           When the station at the sink finishes a wash, it shows up here within a few seconds.
         </EmptyState>
       ) : (

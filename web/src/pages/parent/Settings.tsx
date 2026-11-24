@@ -1,6 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { send, setParentToken, useApi, type ApiError, type Child, type ParentState, type Routine, type Settings as S } from "../../api";
-import { Creature } from "../../components/Creature";
 import { Icon } from "../../components/icons";
 import { Button, InlineError, PageHead, Pending, Sheet, Stepper, Toggle } from "../../components/ui";
 import { useLive } from "../../live";
@@ -68,7 +67,7 @@ export default function Settings() {
                 </form>
                 {kids?.map((k) => (
                   <div className="row" key={k.id}>
-                    <Creature id={k.buddy} size={36} />
+                    <span className="glyph initial" aria-hidden="true">{k.name.slice(0, 1).toUpperCase()}</span>
                     <span className="grow"><span className="name">{k.name}</span><span className="sub">Age {k.age_band}{k.active ? ", showing now" : ""}</span></span>
                     <button type="button" className="icon-btn" aria-label={`Edit ${k.name}`} onClick={() => setSheet(k)}><Icon name="pencil" size={18} /></button>
                     <button type="button" className="icon-btn" aria-label={`Remove ${k.name}`} onClick={() => guarded({ remove: k })}><Icon name="trash" size={18} /></button>

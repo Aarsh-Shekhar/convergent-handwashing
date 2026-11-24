@@ -216,6 +216,7 @@ class AppSettings(Base):
     onboarded: Mapped[bool] = mapped_column(Boolean, default=False)
     active_child_id: Mapped[int | None] = mapped_column(Integer, nullable=True)  # the child new washes belong to (picked by the parent)
     parent_pin_hash: Mapped[str | None] = mapped_column(String(200), nullable=True)  # salted PBKDF2, never the PIN itself
+    care: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)  # the family's doctor contact, typed in by the parent
     updated_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 

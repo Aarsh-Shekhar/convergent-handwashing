@@ -47,6 +47,15 @@ class DecideIn(BaseModel):
     approve: bool
 
 
+class CareIn(BaseModel):
+    """The family doctor's contact. Stored as typed. The app never contacts anyone by itself."""
+
+    name: str = Field(default="", max_length=80)
+    email: str = Field(default="", max_length=120, pattern=r"^$|^[^@\s]+@[^@\s]+\.[^@\s]+$")
+    phone: str = Field(default="", max_length=32, pattern=r"^[0-9+()\-. ]*$")
+    booking_url: str = Field(default="", max_length=300, pattern=r"^$|^https://\S+$")
+
+
 class PinIn(BaseModel):
     pin: str = Field(min_length=4, max_length=8, pattern=r"^[0-9]+$")
 
@@ -188,7 +197,22 @@ def high_five(wash_id: str, db: DbSession = Depends(get_db)) -> dict[str, Any]:
 def adventure(db: DbSession = Depends(get_db)) -> dict[str, Any]:
     s = A.settings(db)
     washes = A.washes(db)
-    return {**P.adventure(washes), "streak": P.streak(washes, _now(), s.timezone), "boss": P.boss_status(washes, _now(), s.timezone)}
+    return {**P.adventure(washes), "streak": P.streak(washes, _now(), s.timezone), "boss": P.boss_status(washes, _now(), s.timezone),
+            "quests": P.quests(washes, _now(), s.timezone)}
+
+
+# ---- care contact (grown-up view, Extensions)
+@router.get("/care", dependencies=[Depends(require_parent)])
+def care(db: DbSession = Depends(get_db)) -> dict[str, Any]:
+    return CareIn(**(A.settings(db).care or {})).model_dump()
+
+
+@router.put("/care", dependencies=[Depends(require_parent)])
+def set_care(body: CareIn, db: DbSession = Depends(get_db)) -> dict[str, Any]:
+    s = A.settings(db)
+    s.care = {k: v.strip() for k, v in body.model_dump().items()}
+    db.commit()
+    return CareIn(**s.care).model_dump()
 
 
 # ---- parent analytics and the sync log

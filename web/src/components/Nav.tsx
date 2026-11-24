@@ -12,14 +12,20 @@ type Item = readonly [path: string, icon: IconName, label: string];
 export const KID_NAV: readonly Item[] = [["/kid", "home", "Home"], ["/kid/live", "live", "Live"], ["/kid/map", "map", "Map"], ["/kid/germs", "germ", "Germs"], ["/kid/rewards", "gift", "Rewards"]];
 export const PARENT_NAV: readonly Item[] = [["/", "home", "Overview"], ["/washes", "list", "Washes"], ["/insights", "chart", "Insights"], ["/rewards", "gift", "Rewards"], ["/station", "station", "Station"]];
 
+/** Reached from the side bar on desktop and from the top strip on a phone. */
+export const PARENT_MORE: readonly Item[] = [["/extensions", "grid", "Extensions"], ["/settings", "gear", "Settings"]];
+
 /** The nav item a path belongs to (a wash's page sits under Washes, a kid's wash result under Home). */
 export function currentItem(path: string, view: View): string {
   if (view === "kid") return KID_NAV.map(([p]) => p).filter((p) => p !== "/kid").find((p) => path.startsWith(p)) ?? "/kid";
   if (path.startsWith("/washes")) return "/washes";
-  return PARENT_NAV.some(([p]) => p === path) ? path : path === "/settings" ? "/settings" : "/";
+  return [...PARENT_NAV, ...PARENT_MORE].some(([p]) => p === path) ? path : "/";
 }
 
-export function Brand() {
+/** The kid view carries the mascot. The grown-up view and the preview bar carry a plain wordmark. */
+export function Brand({ plain }: { plain?: boolean }) {
+  const { view } = useMode();
+  if (plain || view === "parent") return <span className="brand plain"><i aria-hidden="true" />Scrubble</span>;
   return <span className="brand"><img src={bubbles} alt="" width={30} height={23} />Scrubble</span>;
 }
 
@@ -83,12 +89,12 @@ export function BottomTabs({ path }: { path: string }) {
 export function SideBar({ path }: { path: string }) {
   const { view } = useMode();
   const current = currentItem(path, view);
-  const items: readonly Item[] = view === "kid" ? KID_NAV : [...PARENT_NAV, ["/settings", "gear", "Settings"]];
+  const items: readonly Item[] = view === "kid" ? KID_NAV : [...PARENT_NAV, ...PARENT_MORE];
   return (
     <aside className="side">
       <Brand />
       <ViewSwitch />
-      <div className="label">{view === "kid" ? "Play" : "Family"}</div>
+      <div className="label">{view === "kid" ? "Play" : "Workspace"}</div>
       <nav className="sidenav" aria-label="Main">
         {items.map(([to, icon, label]) => (
           <Link key={to} to={to} aria-current={current === to ? "page" : undefined}><Icon name={icon} size={19} />{label}</Link>

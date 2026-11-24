@@ -66,10 +66,10 @@ Desktop layout on the laptop, or Phone layout to show the phone frame. Start in 
 | Time | Do | Say only if true |
 | --- | --- | --- |
 | 0 to 8 s | Kid view, Live, while someone washes. Tiles fill, then the result. | "That is coming from the sink right now." |
-| 8 to 13 s | Kid Home, then Germs. | "Germs are game characters tied to parts of the hand." |
+| 8 to 13 s | Kid Home, tap "Your next wash is". The new level is on the path. | "Every wash is a level. Extra washes past the goal do not count." |
 | 13 to 20 s | Switch to Grown-up. Overview: score line, hand heatmap. | Name a weak zone only if the heatmap shows one. |
 | 20 to 26 s | Station. The four steps, the sync log's top row. | "Only numbers are sent. No video leaves the laptop." |
-| 26 to 30 s | Open that wash. The score arithmetic. | "The score is recognized scrubbing time." |
+| 26 to 30 s | Extensions. The summary for the doctor. | "The parent sends it. We have no clinic partner yet." |
 
 Do not say: clean, germ-free, bacteria removed, clinically, detects soap. The score is recognized scrubbing
 time. Accuracy for Q&A is in `docs/PITCH_INFO.md`.
