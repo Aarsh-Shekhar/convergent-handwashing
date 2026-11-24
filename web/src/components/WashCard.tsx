@@ -18,7 +18,7 @@ export function WashCard({ w, hero = false }: { w: WashView; hero?: boolean }) {
         : <div className={`score-badge ${w.points >= 90 ? "top" : ""}`}>{w.points}</div>}
       <div className="body">
         <div className="title">{w.label} · {w.time}</div>
-        <div className="sub">{Math.round(w.seconds_total)} sec · {w.points} pts{w.zaps ? ` · +${w.zaps} zaps` : ""}</div>
+        <div className="sub">{Math.round(w.seconds_total)} sec · {w.points} pts{w.zaps ? ` · +${w.zaps} zaps` : w.capped ? " · daily zaps done" : ""}</div>
         <div className="pill-row"><MissedPills w={w} /></div>
       </div>
       <span className="chev"><Icon name="right" size={18} /></span>

@@ -26,8 +26,17 @@ export function Germ({ id, size = 48, bob = false, dim = false, className = "" }
   id: string; size?: number; bob?: boolean; dim?: boolean; className?: string;
 }) {
   const v = VARIANT[id] ?? { art: ART[id] ?? scrubby };
-  return (
+  const img = (
     <img src={v.art} alt="" width={size} height={size} className={`${bob ? "bob" : ""} ${className}`}
       style={{ objectFit: "contain", filter: dim ? "grayscale(1) opacity(0.35)" : v.filter }} />
+  );
+  if (!id.startsWith("king_")) return img;
+  return ( // kings wear a crown until the design team draws them
+    <span className="crowned" style={{ width: size, height: size }}>
+      {img}
+      <svg className="crown" width={size * 0.42} height={size * 0.3} viewBox="0 0 40 28" aria-hidden="true" style={{ opacity: dim ? 0.4 : 1 }}>
+        <path d="M3 25 L6 7 L15 16 L20 3 L25 16 L34 7 L37 25 Z" fill="#f6b93b" stroke="#a86b00" strokeWidth="2" strokeLinejoin="round" />
+      </svg>
+    </span>
   );
 }

@@ -11,7 +11,7 @@ export const ZONE_NAMES: Record<Zone, string> = {
 export type Child = { name: string; buddy: string; age_band: string };
 export type WashView = {
   wash_id: string; ended: string; day: string; time: string; label: string;
-  stars: number; points: number; finished: boolean; steps_done: number; zaps: number; seconds_total: number;
+  stars: number; points: number; finished: boolean; steps_done: number; zaps: number; capped: boolean; seconds_total: number;
   coverage: Record<Zone, number>; missed: Zone[];
 };
 export type WashDetail = WashView & {
@@ -19,7 +19,7 @@ export type WashDetail = WashView & {
 };
 export type Spot = { zone: Zone; name: string; missed: number };
 export type Home = {
-  today: number; goal: number; avg_score: number | null; clean_washes: number; latest: WashView | null; tip: Spot | null;
+  today: number; zap_washes_today: number; goal: number; avg_score: number | null; clean_washes: number; latest: WashView | null; tip: Spot | null;
   parent_name: string; child: Child | null;
 };
 export type DayProgress = { period: "day"; date: string; washes: number; goal: number; avg_score: number | null; zones: Record<Zone, number> };
@@ -63,3 +63,11 @@ export function localIso(offsetDays = 0): string {
   const d = new Date(Date.now() + offsetDays * 86400000);
   return d.toLocaleDateString("en-CA");
 }
+
+export type Rarity = "common" | "rare" | "legendary" | "boss";
+export type GermInfo = {
+  id: string; name: string; rarity: Rarity; price: number | null; zone: Zone; owned: boolean; can_buy?: boolean; zapped?: number;
+};
+export type Boss = { germ: string; zone: Zone; done: number; target: number; won: boolean };
+export type Rewards = { zaps: number; germs: GermInfo[]; badges: { id: string; name: string; earned: boolean }[]; boss: Boss };
+export type Germdex = { slots: number; owned: number; germs: GermInfo[]; boss: Boss };

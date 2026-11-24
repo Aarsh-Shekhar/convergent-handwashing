@@ -44,20 +44,28 @@ def test_zaps_are_steps_done_plus_a_bonus_for_a_finished_wash():
 
 
 def test_no_zaps_once_the_daily_goal_is_reached():
-    earlier = [wash(at(3, 14 + i)) for i in range(2)]
+    earlier = [wash(at(3, 14 + i), zaps=8) for i in range(2)]
     w = wash(at(3, 20), ALL7, stars=5)
     assert P.zaps_for(w, earlier, TZ, goal=2) == 0
     assert P.zaps_for(w, earlier, TZ, goal=3) == 7 + P.FINISH_BONUS
 
 
-def test_washes_with_no_stars_do_not_use_up_the_daily_goal():
-    earlier = [wash(at(3, 14), stars=0), wash(at(3, 15), stars=0)]
+def test_washes_that_earned_no_zaps_do_not_use_up_the_daily_goal():
+    # a 1-star wash with no step done earns nothing, so it must not take one of the day's zap washes
+    earlier = [wash(at(3, 14), stars=0), wash(at(3, 15), {"palm_to_palm": 1.0}, stars=1, zaps=0)]
     assert P.zaps_for(wash(at(3, 20), ALL7, stars=5), earlier, TZ, goal=1) == 7 + P.FINISH_BONUS
+
+
+def test_a_wash_over_the_daily_goal_is_marked_capped():
+    capped = wash(at(3, 20), ALL7, stars=5, zaps=0)
+    assert P.wash_view(capped)["capped"] is True
+    assert P.wash_view(wash(at(3, 20), ALL7, stars=5, zaps=10))["capped"] is False
+    assert P.wash_view(wash(at(3, 20), stars=0, zaps=0))["capped"] is False  # nothing to earn: not capped
 
 
 def test_the_daily_cap_resets_at_local_midnight_not_utc_midnight():
     # 04:00 UTC on Nov 4 is 22:00 on Nov 3 in Chicago: the same local day as the earlier wash
-    earlier = [wash(at(3, 20))]
+    earlier = [wash(at(3, 20), zaps=8)]
     assert P.zaps_for(wash(at(4, 4), ALL7, stars=5), earlier, TZ, goal=1) == 0
     # 07:00 UTC on Nov 4 is 01:00 on Nov 4 in Chicago: a new day
     assert P.zaps_for(wash(at(4, 7), ALL7, stars=5), earlier, TZ, goal=1) == 7 + P.FINISH_BONUS
@@ -79,6 +87,8 @@ def test_home_counts_today_against_the_goal_and_clean_washes_never_reset():
     assert h["goal"] == 6
     assert h["clean_washes"] == 2    # finished washes, all time
     assert h["latest"]["wash_id"] == washes[-1].wash_id
+    assert h["zap_washes_today"] == 0     # none of today's washes here earned zaps
+    assert P.home([*washes, wash(at(10, 18), zaps=8)], now, TZ, goal=6)["zap_washes_today"] == 1
     # no washes today: the clean count stays where it was
     assert P.home(washes, at(20), TZ, goal=6)["clean_washes"] == 2
 
@@ -172,3 +182,11 @@ def test_a_wash_is_named_after_the_routine_closest_in_time():
     assert P.label(datetime(2026, 11, 3, 15, 0), routines) == "Afternoon wash"  # nothing within an hour: named by time of day
     assert P.label(datetime(2026, 11, 3, 18, 0), routines) == "Evening wash"    # routine switched off
     assert P.label(datetime(2026, 11, 3, 9, 0), routines) == "Morning wash"
+
+
+def test_a_test_zap_gift_adds_to_the_balance_without_being_a_germ():
+    gift = [{"germ": "_gift", "spent": -500}]
+    r = P.rewards([wash(at(3), zaps=10)], gift, at(5), TZ)
+    assert r["zaps"] == 510
+    assert {g["id"] for g in r["germs"] if g["owned"]} == {"gunky"}
+    assert P.germdex([], gift, at(5), TZ)["owned"] == 1
