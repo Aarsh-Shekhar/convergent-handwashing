@@ -3,9 +3,11 @@ import { api, type Settings, type WashView } from "./api";
 import { Germ, germFor } from "./components/germs";
 import { Empty, Icon, PageHead } from "./components/ui";
 import { LiveProvider, useLive } from "./live";
+import Germdex from "./pages/Germdex";
 import Home from "./pages/Home";
 import Live from "./pages/Live";
 import Progress from "./pages/Progress";
+import Rewards from "./pages/Rewards";
 import WashDetail from "./pages/WashDetail";
 import Washes from "./pages/Washes";
 import { Link, usePath } from "./router";
@@ -31,8 +33,8 @@ function Screen({ path }: { path: string }) {
     case "/washes": return <Washes />;
     case "/live": return <Live />;
     case "/progress": return <Progress />;
-    case "/rewards": return <Soon title="Rewards" />;
-    case "/germdex": return <Soon title="Germ-dex" />;
+    case "/rewards": return <Rewards />;
+    case "/germdex": return <Germdex />;
     case "/settings": return <Soon title="Settings" />;
     default: return <Home />;
   }
@@ -52,7 +54,7 @@ function WashToast({ path }: { path: string }) {
   return (
     <Link to={`/washes/${encodeURIComponent(shown.wash_id)}`} className="toast" role="status" style={{ textDecoration: "none" }}>
       <Germ id={shown.missed.length ? germFor(shown.missed[0]) : "scrubby"} size={36} />
-      <span><b>New wash saved!</b><br />{shown.points} pts{shown.zaps ? ` · +${shown.zaps} zaps` : ""} · {shown.missed.length ? `${shown.missed.length} spots to practice` : "perfect scrub"}</span>
+      <span><b>New wash saved!</b><br />{shown.points} pts{shown.zaps ? ` · +${shown.zaps} zaps` : shown.capped ? " · daily zaps done" : ""} · {shown.missed.length ? `${shown.missed.length} spots to practice` : "perfect scrub"}</span>
     </Link>
   );
 }

@@ -52,6 +52,7 @@ export default function Live() {
           </p>
           <div className="pill-row" style={{ justifyContent: "center" }}>
             {saved.zaps > 0 && <span className="pill zaps">+{saved.zaps} zaps</span>}
+            {saved.capped && <span className="pill zaps">Daily zaps done! More tomorrow</span>}
             <span className="pill">{Math.round(saved.seconds_total)} sec</span>
           </div>
           <button className="btn-ghost" onClick={() => go(`/washes/${encodeURIComponent(saved.wash_id)}`)}>See the hand map <Icon name="right" size={16} /></button>

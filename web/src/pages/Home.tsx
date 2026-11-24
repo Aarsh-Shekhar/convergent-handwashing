@@ -39,6 +39,9 @@ export default function Home() {
             <div>
               <div className="stat-row"><div className="stat-big">{h.avg_score ?? "-"}</div><div className="faint">avg score this week</div></div>
               <div className="stat-row"><div className="stat-big">{h.clean_washes}</div><div className="faint">clean washes so far</div></div>
+              <div className="stat-row faint">
+                {h.zap_washes_today >= h.goal ? "Daily zaps done! More tomorrow" : `${h.zap_washes_today} of ${h.goal} zap washes today`}
+              </div>
             </div>
           </div>
 

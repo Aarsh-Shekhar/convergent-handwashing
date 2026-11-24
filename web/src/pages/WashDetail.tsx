@@ -13,7 +13,7 @@ export default function WashDetail({ id }: { id: string }) {
     <div className="page fade-in">
       <PageHead title={`${w.label} · ${w.time}`} back={back} />
       <div className="card detail-stats">
-        <div className="score"><b>{w.points}</b><span>score{w.zaps ? ` · +${w.zaps} zaps` : ""}</span></div>
+        <div className="score"><b>{w.points}</b><span>score{w.zaps ? ` · +${w.zaps} zaps` : w.capped ? " · daily zaps done" : ""}</span></div>
         <div>
           <b>{Math.round(w.seconds_total)}s</b>
           <span>of {w.total_min_s}s goal {goalMet && <span className="up"><Icon name="check" size={11} /></span>}</span>
