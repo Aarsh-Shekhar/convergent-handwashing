@@ -12,6 +12,9 @@ family is made up and tagged "Demo data".
 
 ## A. Demo family (no camera)
 
+Shortcut: double-click `START_SCRUBBLE_DEMO.command` (or `bash START_SCRUBBLE_DEMO.command`). It builds the app, starts a demo
+backend on port 8010, seeds the family, opens the browser and prints the developer links. The manual steps:
+
 Terminal 1:
 
     CONVERGENT_DEMO_MODE=true CONVERGENT_DATABASE_URL=sqlite:///./scrubble_demo.db .venv/bin/python -m convergent.cli backend
