@@ -9,6 +9,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy import delete, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session as DbSession
 
 from convergent.backend import models as m
@@ -40,8 +41,12 @@ def settings(db: DbSession) -> m.AppSettings:
         row = m.AppSettings(id=1, parent_name="", timezone="America/Chicago", daily_goal=6, routines=DEFAULT_ROUTINES,
                             toggles=DEFAULT_TOGGLES, onboarded=False, updated_utc=utc_now())
         db.add(row)
-        db.commit()
-    return row
+        try:
+            db.commit()
+        except IntegrityError:  # two first requests at once: the other one created it
+            db.rollback()
+            row = db.get(m.AppSettings, 1)
+    return row  # type: ignore[return-value]
 
 
 def update_settings(db: DbSession, changes: dict[str, Any]) -> m.AppSettings:

@@ -169,5 +169,6 @@ def test_a_wash_is_named_after_the_routine_closest_in_time():
     routines = [{"name": "Before breakfast", "time": "07:30", "on": True}, {"name": "Before lunch", "time": "12:00", "on": True},
                 {"name": "Before dinner", "time": "18:00", "on": False}]
     assert P.label(datetime(2026, 11, 3, 12, 40), routines) == "Before lunch"
-    assert P.label(datetime(2026, 11, 3, 15, 0), routines) == "Wash"           # nothing within an hour
-    assert P.label(datetime(2026, 11, 3, 18, 0), routines) == "Wash"           # routine switched off
+    assert P.label(datetime(2026, 11, 3, 15, 0), routines) == "Afternoon wash"  # nothing within an hour: named by time of day
+    assert P.label(datetime(2026, 11, 3, 18, 0), routines) == "Evening wash"    # routine switched off
+    assert P.label(datetime(2026, 11, 3, 9, 0), routines) == "Morning wash"
