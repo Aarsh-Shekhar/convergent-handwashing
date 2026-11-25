@@ -14,6 +14,10 @@ const ICONS: Record<string, ReactNode> = {
   check: <path d="m5 12.5 4.5 4.5L19 7.5" />,
   star: <path d="m12 3.5 2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z" />,
   hand: <path d="M8 13V6.5a1.5 1.5 0 0 1 3 0V12m0-6.5v-1a1.5 1.5 0 0 1 3 0V12m0-6a1.5 1.5 0 0 1 3 0v7m0-4a1.5 1.5 0 0 1 3 0v5a6 6 0 0 1-6 6h-1.5a6 6 0 0 1-4.6-2.2L5 16.5a1.6 1.6 0 0 1 2.4-2.1L8 15" />,
+  clock: <><circle cx="12" cy="12" r="8.5" /><path d="M12 7.5V12l3 2" /></>,
+  wifi: <path d="M4 9.5a12 12 0 0 1 16 0M7 13a7.5 7.5 0 0 1 10 0M10 16.4a3 3 0 0 1 4 0M12 19.5h.01" />,
+  trash: <path d="M5 7h14M10 7V5h4v2M7 7l1 12h8l1-12" />,
+  shield: <path d="M12 3.5 5 6v5.5c0 4.2 3 7.6 7 9 4-1.4 7-4.8 7-9V6z" />,
   lock: <><rect x="5" y="11" width="14" height="9" rx="2" /><path d="M8 11V8a4 4 0 0 1 8 0v3" /></>,
 };
 
@@ -85,6 +89,20 @@ export function PageHead({ title, back, right }: { title: string; back?: () => v
       {back ? <button className="back" onClick={back} aria-label="Back"><Icon name="left" /></button> : <span className="spacer" />}
       <h1>{title}</h1>
       {right ?? <span className="spacer" />}
+    </div>
+  );
+}
+
+export function Toggle({ on, onChange, label }: { on: boolean; onChange: (v: boolean) => void; label: string }) {
+  return <button className="toggle" role="switch" aria-checked={on} aria-label={label} onClick={() => onChange(!on)} />;
+}
+
+export function Stepper({ value, min, max, onChange, label }: { value: number; min: number; max: number; onChange: (v: number) => void; label: string }) {
+  return (
+    <div className="stepper" role="group" aria-label={label}>
+      <button aria-label="Less" onClick={() => onChange(Math.max(min, value - 1))}>−</button>
+      <b>{value}</b>
+      <button aria-label="More" onClick={() => onChange(Math.min(max, value + 1))}>+</button>
     </div>
   );
 }

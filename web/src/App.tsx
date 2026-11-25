@@ -1,32 +1,25 @@
 import { useEffect, useState } from "react";
-import { api, type Settings, type WashView } from "./api";
+import { api, useApi, type Settings, type WashView } from "./api";
 import { Germ, germFor } from "./components/germs";
-import { Empty, Icon, PageHead } from "./components/ui";
+import { Empty, Icon } from "./components/ui";
 import { LiveProvider, useLive } from "./live";
 import Germdex from "./pages/Germdex";
 import Home from "./pages/Home";
+import Onboarding from "./pages/Onboarding";
 import Live from "./pages/Live";
 import Progress from "./pages/Progress";
 import Rewards from "./pages/Rewards";
+import SettingsPage, { Routines } from "./pages/Settings";
 import WashDetail from "./pages/WashDetail";
 import Washes from "./pages/Washes";
-import { Link, usePath } from "./router";
+import { go, Link, usePath } from "./router";
 
 const TABS = [
   ["/", "home", "Home"], ["/progress", "chart", "Progress"], ["/rewards", "gift", "Rewards"],
   ["/germdex", "germ", "Germ-dex"], ["/settings", "gear", "Settings"],
 ] as const;
 
-function Soon({ title }: { title: string }) {
-  return (
-    <div className="page fade-in">
-      <PageHead title={title} />
-      <Empty title="Coming soon">This screen is being built next.</Empty>
-    </div>
-  );
-}
-
-function Screen({ path }: { path: string }) {
+function Screen({ path, restartSetup }: { path: string; restartSetup: () => void }) {
   const wash = path.match(/^\/washes\/(.+)$/);
   if (wash) return <WashDetail id={decodeURIComponent(wash[1])} />;
   switch (path) {
@@ -35,7 +28,8 @@ function Screen({ path }: { path: string }) {
     case "/progress": return <Progress />;
     case "/rewards": return <Rewards />;
     case "/germdex": return <Germdex />;
-    case "/settings": return <Soon title="Settings" />;
+    case "/settings": return <SettingsPage onRestartSetup={restartSetup} />;
+    case "/routines": return <Routines />;
     default: return <Home />;
   }
 }
@@ -72,10 +66,15 @@ function useTimezoneSync() {
 function Shell() {
   const path = usePath();
   useTimezoneSync();
-  const tab = path.startsWith("/washes") || path === "/live" ? "/" : path;
+  const { data: settings, error, reload } = useApi<Settings>("/api/v1/app/settings");
+  const [setupDone, setSetupDone] = useState<boolean | null>(null);
+  useEffect(() => { if (settings) setSetupDone(settings.onboarded); }, [settings]);
+  if (setupDone === null) return <div className="app"><div className="page">{error ? <Empty title="Can't reach the station">{error}. Is the backend running?</Empty> : <div className="skeleton" />}</div></div>;
+  if (!setupDone && settings) return <div className="app" style={{ paddingBottom: 0 }}><Onboarding settings={settings} onDone={() => { setSetupDone(true); go("/", true); }} /></div>;
+  const tab = path.startsWith("/washes") || path === "/live" ? "/" : path === "/routines" ? "/settings" : path;
   return (
     <div className="app">
-      <Screen path={path} />
+      <Screen path={path} restartSetup={() => { reload(); setSetupDone(false); }} />
       <WashToast path={path} />
       <nav className="tabs" aria-label="Main">
         {TABS.map(([to, icon, label]) => (
