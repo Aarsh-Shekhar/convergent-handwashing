@@ -114,6 +114,10 @@ class BackendClient:
         self.stats.live_sent += 1
         return res
 
+    def post_wash(self, record: dict[str, Any]) -> dict[str, Any]:
+        """Save one finished wash for the parent app (the same wash_id twice is stored once)."""
+        return self._req("POST", "/api/v1/washes", record)
+
     def post_calibration(self, profile: CalibrationProfile, device_id: str | None = None, activate: bool = True) -> dict[str, Any]:
         return self._req("POST", "/api/v1/calibrations", {"profile": profile.model_dump(mode="json"), "device_id": device_id, "activate": activate})
 
