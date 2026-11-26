@@ -2,7 +2,7 @@
 
 A faucet-mounted handwashing trainer for children ages 4 to 10, built by the Texas Convergent tech team. A camera watches the child's hands. A laptop recognizes the washing motions and scores them. A projector shows germs that disappear as the child washes.
 
-This repo is the technical foundation. The child-facing game, the parent app and the XP/progression system are not built yet.
+This repo holds the recognition pipeline and the Scrubble app (`web/`, served by the backend): a kid view with the game and a grown-up view with the numbers. Start a demo of the app with `bash START_SCRUBBLE_DEMO.command`. App docs: `docs/SCRUBBLE_APP.md`.
 
 Dated history, measurements, decisions and the next-work list are in `NOTES.md`. Read it before planning work. Add a dated entry there when something is built, measured or decided, and compress it every few weeks (rules at its top). Keep this file to stable, everyday facts.
 

@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { send, useApi, ZONE_MOVES, ZONE_NAMES, type ApiError, type GermDex as Dex, type GermShop } from "../../api";
+import { send, useApi, ZONE_MOVES, ZONE_NAMES, type ApiError, type Child, type GermDex as Dex, type GermShop } from "../../api";
 import { Creature } from "../../components/Creature";
+import { Playground } from "../../components/Playground";
 import { Icon } from "../../components/icons";
 import { Bar, Button, InlineError, Pending, Sheet } from "../../components/ui";
 import { GERM_NAMES, HIDES, RARITY, WHY } from "../../germs";
@@ -40,6 +41,7 @@ function GermSheet({ g, shop, onClose }: { g: Germ; shop: GermShop | null; onClo
 export default function KidGerms() {
   const { data: dex, error, reload } = useApi<Dex>("/api/v1/app/germdex");
   const { data: shop } = useApi<GermShop>("/api/v1/app/rewards");
+  const { data: kids } = useApi<Child[]>("/api/v1/app/children");
   const [open, setOpen] = useState<string | null>(null);
   const picked = dex?.germs.find((g) => g.id === open);
   return (
@@ -61,6 +63,9 @@ export default function KidGerms() {
             </div>
           </section>
 
+          <div className="sec"><h2 className="h2">Germ playground</h2></div>
+          <Playground germs={dex.germs} buddy={kids?.find((k) => k.active)?.buddy ?? "bubbles"} />
+
           <div className="sec"><h2 className="h2">Your germs</h2>{shop && <span className="tag gold"><Icon name="bolt" size={14} />{shop.zaps} zaps to spend</span>}</div>
           <ul className="germ-grid">
             {dex.germs.map((g) => (
@@ -72,6 +77,9 @@ export default function KidGerms() {
                   {g.owned ? <small className="num">zapped ×{g.zapped}</small> : <small><Icon name="lock" size={13} />{g.price === null ? "Boss prize" : `${g.price} zaps`}</small>}
                 </button>
               </li>
+            ))}
+            {Array.from({ length: Math.max(0, dex.slots - dex.germs.length) }, (_, i) => (
+              <li key={`soon-${i}`}><div className="germ-card soon" aria-label="A new germ is coming soon"><span className="pad"><b aria-hidden="true">?</b></span><b>???</b><small>Coming soon</small></div></li>
             ))}
           </ul>
           <p className="muted center" style={{ marginTop: 14 }}>"Zapped" counts the washes where that germ's part of the hand got its full scrub.</p>

@@ -47,6 +47,13 @@ Parked: motion sensor wake-up. The camera already starts washes (`--auto-wash`).
 
 ## Log
 
+### 2026-11-26: Andrew's app and the two-view app merged, now on `main` (Aarsh)
+
+- `main` had Andrew's single-view parent app (PR 2). `scrubble-companion` had the two-view app on the same backend. They are now one: the two views are the base and every screen of his has a place in them. The table is in `docs/SCRUBBLE_APP.md`.
+- Brought over from his last commit: the germ playground, "coming soon" germ slots, the live camera check in onboarding, scrub rules and "Run setup again" in settings, the coaching tip.
+- `main` also gets Bryan's commits (this file, `RESEARCH.md`, `docs/PITCH_INFO.md`, the Windows fixes), which were not on `main` before.
+- Tests: Playwright 20. Others as below.
+
 ### 2026-11-24: Scrubble companion app, two views (branch `scrubble-companion`, Aarsh)
 
 - Built on Andrew's backend and web app. Kid view (`/kid`, game) and grown-up view (`/`, tables, charts, hand heatmap), with Phone / Desktop layout switch. Details: `docs/SCRUBBLE_APP.md`, `docs/design-spec.md`.

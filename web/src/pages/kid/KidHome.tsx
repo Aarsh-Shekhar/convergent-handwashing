@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { send, useApi, ZONE_MOVES, ZONE_NAMES, type Adventure, type Child, type Home, type Quest, type WeekProgress } from "../../api";
 import { BayScene } from "../../art/scenes";
 import { Creature, germFor } from "../../components/Creature";
@@ -10,6 +11,7 @@ import { go, Link } from "../../router";
 import { currentPlace, placePath } from "./KidMap";
 
 const DOW = ["M", "T", "W", "T", "F", "S", "S"];
+const TIPS = Object.entries(ZONE_MOVES).map(([z, move]) => `${ZONE_NAMES[z as keyof typeof ZONE_NAMES]}: ${move}!`);
 const questText = (q: Quest) => q.id === "wash" ? "Wash your hands at the sink" : q.id === "stars" ? `Get ${q.need} stars in one wash` : `Scrub your ${(q.zone_name ?? "").toLowerCase()} for 3 seconds`;
 
 export default function KidHome() {
@@ -21,6 +23,7 @@ export default function KidHome() {
   const { refresh } = useLive();
   const { stage } = useWashStage();
   const { layout } = useMode();
+  const [poked, setPoked] = useState(0);
   const kid = h?.child;
   const todayIdx = (new Date().getDay() + 6) % 7;
   const w = h?.latest;
@@ -31,8 +34,10 @@ export default function KidHome() {
       <section className="scene">
         <BayScene wide={layout === "desktop"} />
         <h1>Hi {kid?.name ?? "there"}!</h1>
-        <p>{h && h.today >= h.goal ? "You hit today's goal. Nice work!" : "Ready to zap some germs?"}</p>
-        <Creature id={kid?.buddy ?? "bubbles"} size={132} className="buddy" bob />
+        <p role="status">{poked > 0 ? TIPS[(poked + new Date().getDate()) % TIPS.length] : h && h.today >= h.goal ? "You hit today's goal. Nice work!" : "Ready to zap some germs?"}</p>
+        <button type="button" className={`buddy-btn ${poked ? "hop" : ""}`} aria-label="Your buddy. Tap for a scrub tip" onClick={() => { setPoked((n) => n + 1); window.setTimeout(() => setPoked(0), 2600); }}>
+          <Creature id={kid?.buddy ?? "bubbles"} size={132} className="buddy" bob />
+        </button>
       </section>
 
       {kids && kids.length > 1 && (

@@ -1,5 +1,6 @@
 // First run: a short story for the kid (who the germs are, how scrubbing zaps them), then set-up for the
 // grown-up. Ten steps, as in the design. Progress is kept on this device, so a reload continues where it was.
+import { Icon } from "../components/icons";
 import { useEffect, useState, type ReactNode } from "react";
 import { send, useApi, type AgeBand, type ApiError, type Child, type Settings, type Station } from "../api";
 import { StationArt } from "../art/station";
@@ -31,7 +32,9 @@ export default function Onboarding() {
   const { data: settings } = useApi<Settings>("/api/v1/app/settings");
   const { data: kids } = useApi<Child[]>("/api/v1/app/children");
   const { data: station } = useApi<Station>("/api/v1/app/station");
-  const { refresh, connected } = useLive();
+  const { refresh, connected, live: feed } = useLive();
+  const [sawHands, setSawHands] = useState(false);
+  useEffect(() => { if (feed && feed.hands > 0) setSawHands(true); }, [feed]);
   const live = useStationActive();
   const [error, setError] = useState<ApiError | null>(null);
   const [busy, setBusy] = useState(false);
@@ -122,6 +125,9 @@ export default function Onboarding() {
           <div className="station-art small"><StationArt live={live} /></div>
           <div className={`card check ${connected ? "ok" : ""}`}><b>{connected ? "This app is connected to the station laptop" : "Not connected to the station laptop"}</b>
             <p>{connected ? "You opened Scrubble from the laptop that runs the station, so there is nothing to pair." : "Open this app from the address the station laptop shows, on the same Wi-Fi."}</p></div>
+          {(station?.devices ?? []).filter((d) => d.status !== "unknown").map((d) => (
+            <div className="card check ok" key={d.device_id}><b>{d.device_id}</b><p>Sink device, {d.status}.</p></div>
+          ))}
           <p className="muted">Pairing by code is not built yet. The laptop, camera and projector are set up from docs/HARDWARE_DAY_RUNBOOK.md.</p>
         </div>
       );
@@ -132,16 +138,19 @@ export default function Onboarding() {
         <div className="setup">
           <h1 className="h1">Camera check</h1>
           <div className="check-line"><StationStatus /><span className="muted">{live ? "The wash software is running and sending updates." : "Start the wash software on the laptop to see it go live here."}</span></div>
+          <ul className="live-checks">
+            <li className={live ? "ok" : ""}><span className="tick"><Icon name="check" size={16} /></span>Station is running<span className="sr-only">{live ? " (yes)" : " (not yet)"}</span></li>
+            <li className={sawHands ? "ok" : ""}><span className="tick"><Icon name="check" size={16} /></span>{sawHands ? "Hands seen by the camera" : "Hold both hands over the sink"}<span className="sr-only">{sawHands ? " (yes)" : " (not yet)"}</span></li>
+          </ul>
           <ul className="checklist">
             <li>Projector about 60 cm above the hands</li>
             <li>Good, even light over the sink</li>
-            <li>Both hands inside the lit area</li>
           </ul>
           <div className="card check ok"><b>The picture stays on the station</b><p>The camera picture is analysed on the laptop. This app only receives each wash's times and score{station?.last_wash ? "" : " once a wash is done"}.</p></div>
           <p className="muted">The live camera view is on the laptop screen, not here.</p>
         </div>
       );
-      action = <Button wide onClick={next}>Looks good</Button>;
+      action = <Button wide onClick={next}>{sawHands ? "Looks good" : "Skip for now"}</Button>;
       break;
     case "routines":
       body = (

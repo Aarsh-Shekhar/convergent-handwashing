@@ -104,3 +104,6 @@ details > summary { cursor: pointer; color: var(--accent); font-weight: 500; min
 .formula { font: 400 13px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--ink-2); }
 .glyph { width: 36px; height: 36px; flex: none; border-radius: 8px; display: grid; place-items: center; color: var(--ink-2); background: var(--sunken); }
 [data-view="kid"] .glyph { width: 42px; height: 42px; border-radius: 12px; color: var(--navy); background: var(--sky-tint); }
+
+.tip-line { margin-top: 12px; padding: 10px 12px; border-radius: 6px; background: var(--sunken); border-left: 3px solid var(--accent); font-size: 13px; color: var(--ink-2); }
+.tip-line b { color: var(--ink); font-weight: 600; }

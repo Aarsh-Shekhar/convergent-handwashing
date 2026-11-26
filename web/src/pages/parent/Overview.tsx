@@ -85,6 +85,9 @@ export default function Overview() {
                     <tbody>{weakest.map((z) => <tr key={z.zone}><td>{z.name}</td><td className="r">{Math.round(z.coverage! * 100)}%</td><td className="r">{z.missed} of {z.n}</td></tr>)}</tbody>
                   </table>
                 )}
+                {weakest[0] && weakest[0].missed > 0 && (
+                  <p className="tip-line"><b>Coaching tip.</b> {weakest[0].name} were skipped in {pct(weakest[0].missed, weakest[0].n)} of washes. Try saying "{weakest[0].name} next!" while they scrub.</p>
+                )}
               </section>
               <section className="card">
                 <div className="sec" style={{ margin: "0 0 4px" }}><h2 className="h2">Station</h2><Link to="/station" className="link">How sync works</Link></div>

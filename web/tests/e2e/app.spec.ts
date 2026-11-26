@@ -339,7 +339,7 @@ test("first run: the tour, set-up, and an empty app that fills with the first wa
   await page.getByRole("button", { name: "Continue" }).click();
   await expect(page.getByText("This app is connected to the station laptop")).toBeVisible();
   await page.getByRole("button", { name: "Continue" }).click();
-  await page.getByRole("button", { name: "Looks good" }).click();
+  await page.getByRole("button", { name: "Skip for now" }).click();
   await page.getByRole("button", { name: "Finish setup" }).click();
   await expect(page.getByRole("heading", { name: "Ready to bust some germs, Mia!" })).toBeVisible();
   await page.getByRole("button", { name: "Start playing" }).click();
@@ -401,5 +401,40 @@ test("extensions: save the doctor, the summary uses real numbers, files download
   expect(ics.suggestedFilename()).toBe("scrubble-routines.ics");
   await expect(page.getByText("Not built", { exact: true })).toHaveCount(4);
   await page.screenshot({ path: `${SHOTS}/flow-7-extensions.png`, fullPage: true });
+  expect(noise).toEqual([]);
+});
+
+
+test("Andrew's pieces inside the two views: playground, coming-soon germs, live camera check, setup rerun, coaching tip", async ({ page, request }) => {
+  await seed();
+  const noise = watchConsole(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/kid/germs");
+  const yard = page.getByRole("region", { name: "Germ playground" });
+  await yard.getByRole("button", { name: /Gunky\. Tap to make it hop/ }).click();
+  await expect(yard.getByRole("status")).toHaveText('Gunky: "I hide on palms!"');
+  await expect(page.getByLabel("A new germ is coming soon")).toHaveCount(4);
+  await page.screenshot({ path: `${SHOTS}/flow-8-playground.png` });
+  await page.goto("/kid");
+  await page.getByRole("button", { name: /Your buddy/ }).click();
+  await expect(page.locator(".scene").getByRole("status")).toContainText(/:.+!/);
+
+  await page.setViewportSize({ width: 1280, height: 860 });
+  await page.goto("/");
+  await expect(page.locator(".tip-line")).toContainText(/Try saying ".+ next!"/);
+  await page.goto("/settings");
+  await expect(page.getByText("Scrub rules")).toBeVisible();
+  await page.getByRole("button", { name: /Run setup again/ }).click();
+  await expect(page).toHaveURL(/\/onboarding/);
+
+  // the camera step turns green from the live feed, like Andrew's version
+  await page.evaluate(() => localStorage.setItem("scrubble.onboarding.step", "7"));
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "Camera check" })).toBeVisible();
+  await expect(page.getByText("Hold both hands over the sink")).toBeVisible();
+  await stationLive(request, null, {}, 2);
+  await expect(page.getByText("Hands seen by the camera")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Looks good" })).toBeVisible();
+  await page.screenshot({ path: `${SHOTS}/flow-9-camera-check.png` });
   expect(noise).toEqual([]);
 });

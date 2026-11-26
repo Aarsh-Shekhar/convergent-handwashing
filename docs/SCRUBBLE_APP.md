@@ -11,6 +11,29 @@ Extends Andrew's parent app (`andrew` branch). AI-assisted (Claude); review befo
 
 See `docs/demo-runbook.md`. Development with hot reload: backend on 8010, then `cd web && npm run dev` (port 5173).
 
+## Where Andrew's app lives now
+
+Andrew built the first app (branches `andrew`, `parent-app`, merged to `main` on 2026-11-25). On 2026-11-26 it was
+merged with the two-view app. His backend is used as it is. Each of his screens has a place in the two views:
+
+| Andrew's screen or feature | Where it is now |
+| --- | --- |
+| Backend: per-wash saving, progress rules, app API, zap rule `worth()` | Unchanged, `src/convergent/backend`, `scoring/progression.py` |
+| Home (washes today, average, latest wash, tip) | Kid Home (`/kid`) and grown-up Overview (`/`). His tip is the "Coaching tip" on Overview |
+| Wash history and wash detail | Grown-up Washes (`/washes`), with the score arithmetic added. Kid wash page `/kid/wash/:id` |
+| Live wash | Kid Live (`/kid/live`), his page ported |
+| Progress (day, week, month, trouble spots) | Grown-up Overview and Insights (range picker, heatmap, per-step bars) |
+| Rewards: zaps, catching germs, badges | Kid Germs (`/kid/germs`) for zaps and catching, Kid Rewards for badges |
+| Germ playground | Kid Germs, `components/Playground.tsx`. Tap a germ and it hops and says where it hides |
+| Germ-dex with boss and "coming soon" slots | Kid Germs. The four empty slots are shown as "Coming soon" |
+| Onboarding: tour, grown-up, kid, station, camera check, routines | `/onboarding`, same ten steps. The camera step turns green from the live feed as in his version |
+| Routines and daily goal | Grown-up Settings |
+| Settings: station row, scrub rules, kid profile, delete history, run setup again | Grown-up Settings and Station. "Scrub rules" and "Run setup again" added |
+| `scripts/give_zaps.py`, `scripts/seed_demo_washes.py` | Kept |
+
+Not carried over: his light blue single-view styling and his page files (`web/src/pages/Home.tsx` and the others),
+which the two views replace. The name on screen is Scrubble. His build said Scrubby.
+
 ## What is where
 
 | Part | Path |
@@ -82,7 +105,7 @@ Run on 2026-11-24 in a Linux container. No camera, Pi, projector or sample video
 | `cd web && npm run typecheck` | exit 0 |
 | `cd web && npm test` | 11 passed |
 | `cd web && npm run build` | exit 0 |
-| `cd web && npm run test:e2e` (Chrome, real backend) | 19 passed, run in America/Chicago and Asia/Tokyo |
+| `cd web && npm run test:e2e` (Chrome, real backend) | 20 passed, run in America/Chicago and Asia/Tokyo |
 
 `tests/unit/test_show_window.py` aborts here because it opens a window and there is no display. It aborts the
 same way on `andrew`. Run it on a Mac. The 6 skips need `data/samples/handwashing_missing_step.mp4`.

@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { send, setParentToken, useApi, type ApiError, type Child, type ParentState, type Routine, type Settings as S } from "../../api";
+import { send, setParentToken, useApi, type ApiError, type Child, type ParentState, type Routine, type Settings as S, type Station } from "../../api";
 import { Icon } from "../../components/icons";
 import { Button, InlineError, PageHead, Pending, Sheet, Stepper, Toggle } from "../../components/ui";
 import { useLive } from "../../live";
@@ -49,6 +49,7 @@ export default function Settings() {
   const close = () => { setSheet(null); reloadParent(); };
   const done = () => { setSheet(null); refresh(); };
   const save = (changes: Partial<S>) => send("PUT", "/api/v1/app/settings", changes).then(refresh, (e: ApiError) => { setFailed(e); reload(); });
+  const { data: station } = useApi<Station>("/api/v1/app/station");
   const setRoutines = (routines: Routine[]) => save({ routines });
 
   return (
@@ -113,6 +114,10 @@ export default function Settings() {
                 <div className="row"><span className="grow"><span className="name">Reminders at the station</span><span className="sub">The station cannot show reminders</span></span><Toggle on={false} disabled label="Station reminder (not available)" onChange={() => {}} /></div>
                 <div className="row"><span className="grow"><span className="name">Tell me if a wash is skipped</span><span className="sub">This app cannot send notifications</span></span><Toggle on={false} disabled label="Skipped wash alert (not available)" onChange={() => {}} /></div>
                 <div className="row"><span className="grow"><span className="name">Timer, difficulty, sounds</span><span className="sub">Set on the station laptop. See Station for the current values</span></span></div>
+              </div>
+              <div className="rows">
+                <div className="row"><span className="grow"><span className="name">Scrub rules</span><span className="sub">{station?.rules ? `${station.rules.step_min_s} s per step, ${station.rules.scrub_goal_s} s and ${station.rules.steps_required} of 7 steps to finish. Set on the station.` : "Shown after the station has sent a wash. Set on the station."}</span></span></div>
+                <button type="button" className="row" onClick={() => go("/onboarding")}><span className="grow"><span className="name">Run setup again</span><span className="sub">The first-run tour and set-up steps. Nothing is deleted.</span></span><Icon name="chevron" size={18} /></button>
               </div>
               <p className="note">There are no accounts yet: the app is served by the station laptop to devices on its network.</p>
             </section>
